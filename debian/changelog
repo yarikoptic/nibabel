@@ -1,3 +1,11 @@
+pynifti (0.20100607.1-3) unstable; urgency=low
+
+  * Remove broken --no-undefined linker option for the nifticlib Python
+    extension (Closes: #625049).
+  * Updated uploader email address.
+
+ -- Michael Hanke <mih@debian.org>  Wed, 04 May 2011 12:43:25 -0400
+
 pynifti (0.20100607.1-2) unstable; urgency=low
 
   * Adjust libnifti-dev build-dependency -- no versioned -dev package
