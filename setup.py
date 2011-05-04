@@ -21,7 +21,7 @@ from glob import glob
 # Common configuration #
 ########################
 
-extra_link_args = ['--Wl,--no-undefined']
+extra_link_args = []
 include_dirs = []
 library_dirs = []
 defines = []
