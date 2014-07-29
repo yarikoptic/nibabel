@@ -2,6 +2,12 @@ nibabel (1.3.0+git466-g27e4feb-1) neurodebian-devel; urgency=medium
 
   * New snapshot from 1.3.0-466-g27e4feb in preparation to new upstream
     release.
+  * debian/control
+    - added python-six and python-matplotlib (for documentation) to
+      build-depends
+  * debian/{control,rules}
+    - drop pysupport in favor of dh*_python
+    - add python3-nibabel
 
  -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 28 Jul 2014 20:44:01 -0400
 

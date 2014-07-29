@@ -1,10 +1,15 @@
 #!/usr/bin/make -f
 # -*- mode: makefile; coding: utf-8 -*-
 
+PYVERS = $(shell pyversions -vr)
+PYVER = $(shell pyversions -vd)
+PY3VERS = $(shell py3versions -vr)
+PY3VER = $(shell py3versions -vd)
+
 # one ring to rule them all ...
 %:
 # need to enforce distutils, since we also have a makefile
-	dh $@ --buildsystem=python_distutils --builddirectory=build
+	dh $@ --buildsystem=python_distutils --builddirectory=build --with=python2,python3
 
 override_dh_auto_build:
 	dh_auto_build
@@ -17,13 +22,17 @@ override_dh_auto_build:
 	# also doc source files only consume space
 	-rm -r build/html/_sources
 
+override_dh_auto_install: ${PYVERS:%=python-install%} ${PY3VERS:%=python-install%}
+python-install%:
+	python$* setup.py install --install-layout=deb --root=$(CURDIR)/debian/tmp
+
 # enable when we believe that the tests should pass
-override_dh_auto_test:
+override_dh_auto_test: ${PYVERS:%=python-test%} ${PY3VERS:%=python-test%}
+
+python-test%:
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
-	for buildver in $(shell pyversions -vr); do \
-		echo "I: Running NiBabel unittests using python$$buildver"; \
-		$(MAKE) unittest PYTHON=python$$buildver || exit 1 ;\
-	done
+	@echo "I: Running NiBabel unittests using python$*"
+	$(MAKE) unittest PYTHON=python$*
 endif
 
 ## immediately useable documentation
