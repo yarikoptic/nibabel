@@ -148,6 +148,15 @@ def get_opt_parser():
         Option("-z", "--zeros",
                action="store_true", dest='stats_zeros', default=False,
                help="Include zeros into output basic data statistics (--stats)"),
+
+        Option("-p", "--prov",
+               action="store_true", dest='prov', default=False,
+               help="Print provenance summary for the file"),
+
+        Option("--prov-paths",
+               dest='prov_paths', default='*.ttl:../*.ttl',
+               help="Colon-separated set of globs where to search for PROV "
+                    "(.ttl) files"),
         ])
 
     return p
@@ -208,6 +217,8 @@ def proc_file(f, opts):
             row += ['error']
     return row
 
+def load_prov_graph(paths):
+    import rdflib # there is a check outside, so let it crash if no better
 
 def main():
     """Show must go on"""
@@ -217,6 +228,13 @@ def main():
 
     global verbose_level
     verbose_level = opts.verbose
+
+    if options.prov:
+        try:
+            import rdflib
+        except Exception as e:
+            raise RuntimeError("rdflib module is required to give PROV summary")
+        prov_graph = load_prov_graph(options.prov_paths)
 
     if verbose_level < 3:
         # suppress nibabel format-compliance warnings
