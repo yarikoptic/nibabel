@@ -1,17 +1,18 @@
 #!/usr/bin/env python
 """PAR/REC to NIfTI converter
 """
+from __future__ import division, print_function, absolute_import
 
 from optparse import OptionParser, Option
 import sys
 import os
 import gzip
-import numpy as np
 import nibabel
 import nibabel.parrec as pr
 import nibabel.nifti1 as nifti1
 from nibabel.loadsave import read_img_data
 from nibabel.filename_parser import splitext_addext
+from nibabel.volumeutils import seek_tell
 
 # global verbosity switch
 verbose_switch = False
@@ -74,11 +75,10 @@ the corresponding settings in the NIfTI header. Default: 'dv'"""))
 
 def verbose(msg, indent=0):
     if verbose_switch:
-
-        print "%s%s" % (' ' * indent, msg)
+        print("%s%s" % (' ' * indent, msg))
 
 def error(msg, exit_code):
-    print  >> sys.stderr, msg
+    sys.stderr.write(msg + '\n')
     sys.exit(exit_code)
 
 def proc_file(infile, opts):
@@ -172,12 +172,16 @@ def proc_file(infile, opts):
 
     verbose('Writing %s' % outfilename)
     # first write the header
-    nimg._write_header(outfile, nhdr, slope, intercept)
+    nhdr.set_slope_inter(slope, intercept)
+    nhdr.write_to(outfile)
+    # Seek to data offset position
+    offset = nhdr.get_data_offset()
+    seek_tell(outfile, offset, write0=True)
     # now the data itself, but prevent any casting or scaling
     nibabel.volumeutils.array_to_file(
             raw_data,
             outfile,
-            offset=nhdr.get_data_offset())
+            offset=offset)
     # done
     outfile.close()
 
@@ -198,9 +202,8 @@ def main():
         verbose('Processing %s' % infile)
         try:
             proc_file(infile, opts)
-        except Exception:
-            err = sys.exc_info()[1]
-            errs.append('%s: %s' % (infile, err))
+        except Exception as e:
+            errs.append('%s: %s' % (infile, e))
 
     if len(errs):
         error('Caught %i exceptions. Dump follows:\n\n %s'

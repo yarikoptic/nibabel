@@ -7,7 +7,7 @@ API Documentation
 =================
 
 .. autosummary::
-   :toctree: generated
+   :toctree: reference
 
    nibabel
 
@@ -18,15 +18,19 @@ File Formats
 ============
 
 .. autosummary::
-   :toctree: generated
+   :toctree: reference
 
    analyze
    spm2analyze
    spm99analyze
    gifti
-   minc
+   freesurfer
+   minc1
+   minc2
    nicom
    nifti1
+   nifti2
+   ecat
    parrec
    trackvis
 
@@ -35,7 +39,7 @@ Image Utilities
 ===============
 
 .. autosummary::
-   :toctree: generated
+   :toctree: reference
 
    eulerangles
    funcs
@@ -48,15 +52,50 @@ Image Utilities
    volumeutils
 
 
+Float / integer conversion
+==========================
+
+.. autosummary::
+    :toctree: reference
+
+    arraywriters
+    casting
+
+System utilities
+================
+
+.. autosummary::
+    :toctree: reference
+
+    data
+    environment
+
 Miscellaneous Helpers
 =====================
 
 .. autosummary::
-   :toctree: generated
+   :toctree: reference
 
    arrayproxy
+   affines
    batteryrunners
+   data
+   dft
    fileholders
    filename_parser
+   fileslice
    onetime
+   openers
+   optpkg
+   rstutils
    tmpdirs
+   tripwire
+   wrapstruct
+
+Alphabetical API reference
+==========================
+
+.. toctree::
+    :maxdepth: 2
+
+    reference/index

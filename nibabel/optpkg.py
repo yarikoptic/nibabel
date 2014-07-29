@@ -9,6 +9,7 @@ else:
 
 from .tripwire import TripWire
 
+
 def optional_package(name, trip_msg=None):
     """ Return package-like thing and module setup for package `name`
 
@@ -32,8 +33,8 @@ def optional_package(name, trip_msg=None):
         callable usually set as ``setup_module`` in calling namespace, to allow
         skipping tests.
 
-    Example
-    -------
+    Examples
+    --------
     Typical use would be something like this at the top of a module using an
     optional package:
 
@@ -66,8 +67,9 @@ def optional_package(name, trip_msg=None):
     """
     # fromlist=[''] results in submodule being returned, rather than the top
     # level module.  See help(__import__)
+    fromlist = [''] if '.' in name else []
     try:
-        pkg = __import__(name, fromlist=[''])
+        pkg = __import__(name, fromlist=fromlist)
     except ImportError:
         pass
     else: # import worked

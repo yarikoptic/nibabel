@@ -107,10 +107,10 @@ data.  The ``file_map`` contents should therefore be such, that this will
 work:
 
    >>> # write an image to files
-   >>> from StringIO import StringIO #23dt : BytesIO
+   >>> from io import BytesIO
    >>> file_map = nib.AnalyzeImage.make_file_map()
-   >>> file_map['image'].fileobj = StringIO() #23dt : BytesIO
-   >>> file_map['header'].fileobj = StringIO() #23dt : BytesIO
+   >>> file_map['image'].fileobj = BytesIO()
+   >>> file_map['header'].fileobj = BytesIO()
    >>> img = nib.AnalyzeImage(data, np.eye(4))
    >>> img.file_map = file_map
    >>> img.to_file_map()
@@ -125,6 +125,11 @@ work:
    True
 
 '''
+
+try:
+    basestring
+except NameError:  # python 3
+    basestring = str
 
 import warnings
 
@@ -148,6 +153,7 @@ class HeaderTypeError(Exception):
 class Header(object):
     ''' Template class to implement header protocol '''
     default_x_flip = True
+    data_layout = 'F'
 
     def __init__(self,
                  data_dtype=np.float32,
@@ -239,20 +245,63 @@ class Header(object):
         return shape_zoom_affine(shape, zooms,
                                  self.default_x_flip)
 
-    get_default_affine = get_base_affine
+    get_best_affine = get_base_affine
 
-    def data_to_fileobj(self, data, fileobj):
-        ''' Write image data to file in fortran order '''
+    def data_to_fileobj(self, data, fileobj, rescale=True):
+        ''' Write array data `data` as binary to `fileobj`
+
+        Parameters
+        ----------
+        data : array-like
+            data to write
+        fileobj : file-like object
+            file-like object implementing 'write'
+        rescale : {True, False}, optional
+            Whether to try and rescale data to match output dtype specified by
+            header. For this minimal header, `rescale` has no effect
+        '''
+        data = np.asarray(data)
         dtype = self.get_data_dtype()
-        fileobj.write(data.astype(dtype).tostring(order='F'))
+        fileobj.write(data.astype(dtype).tostring(order=self.data_layout))
 
     def data_from_fileobj(self, fileobj):
-        ''' Read data in fortran order '''
+        ''' Read binary image data from `fileobj` '''
         dtype = self.get_data_dtype()
         shape = self.get_data_shape()
         data_size = int(np.prod(shape) * dtype.itemsize)
         data_bytes = fileobj.read(data_size)
-        return np.ndarray(shape, dtype, data_bytes, order='F')
+        return np.ndarray(shape, dtype, data_bytes, order=self.data_layout)
+
+
+def supported_np_types(obj):
+    """ Numpy data types that instance `obj` supports
+
+    Parameters
+    ----------
+    obj : object
+        Object implementing `get_data_dtype` and `set_data_dtype`.  The object
+        should raise ``HeaderDataError`` for setting unsupported dtypes. The
+        object will likely be a header or a :class:`SpatialImage`
+
+    Returns
+    -------
+    np_types : set
+        set of numpy types that `obj` supports
+    """
+    dt = obj.get_data_dtype()
+    supported = []
+    for name, np_types in np.sctypes.items():
+        for np_type in np_types:
+            try:
+                obj.set_data_dtype(np_type)
+            except HeaderDataError:
+                continue
+            # Did set work?
+            if np.dtype(obj.get_data_dtype()) == np.dtype(np_type):
+                supported.append(np_type)
+    # Reset original header dtype
+    obj.set_data_dtype(dt)
+    return set(supported)
 
 
 class ImageDataError(Exception):
@@ -269,7 +318,7 @@ class SpatialImage(object):
     _compressed_exts = ()
 
     ''' Template class for images '''
-    def __init__(self, data, affine, header=None,
+    def __init__(self, dataobj, affine, header=None,
                  extra=None, file_map=None):
         ''' Initialize image
 
@@ -279,10 +328,10 @@ class SpatialImage(object):
 
         Parameters
         ----------
-        data : object
-           image data.  It should be some object that retuns an array
-           from ``np.asanyarray``.  It should have a ``shape`` attribute or
-           property
+        dataobj : object
+           Object containg image data.  It should be some object that retuns an
+           array from ``np.asanyarray``.  It should have a ``shape`` attribute
+           or property
         affine : None or (4,4) array-like
            homogenous affine giving relationship between voxel coordinates and
            world coordinates.  Affine can also be None.  In this case,
@@ -296,12 +345,12 @@ class SpatialImage(object):
         file_map : mapping, optional
            mapping giving file information for this image format
         '''
-        self._data = data
+        self._dataobj = dataobj
         if not affine is None:
             # Check that affine is array-like 4,4.  Maybe this is too strict at
             # this abstract level, but so far I think all image formats we know
             # do need 4,4.
-            # Copy affine to  isolate from environment.  Specify float type to
+            # Copy affine to isolate from environment.  Specify float type to
             # avoid surprising integer rounding when setting values into affine
             affine = np.array(affine, dtype=np.float64, copy=True)
             if not affine.shape == (4,4):
@@ -313,18 +362,75 @@ class SpatialImage(object):
         self._header = self.header_class.from_header(header)
         # if header not specified, get data type from input array
         if header is None:
-            if hasattr(data, 'dtype'):
-                self._header.set_data_dtype(data.dtype)
+            if hasattr(dataobj, 'dtype'):
+                self._header.set_data_dtype(dataobj.dtype)
         # make header correspond with image and affine
         self.update_header()
         if file_map is None:
             file_map = self.__class__.make_file_map()
         self.file_map = file_map
         self._load_cache = None
+        self._data_cache = None
+
+    @property
+    def _data(self):
+        warnings.warn('Please use ``dataobj`` instead of ``_data``; '
+                      'We will remove this wrapper for ``_data`` soon',
+                      FutureWarning,
+                      stacklevel=2)
+        return self._dataobj
+
+    @property
+    def dataobj(self):
+        return self._dataobj
+
+    @property
+    def affine(self):
+        return self._affine
+
+    @property
+    def header(self):
+        return self._header
 
     def update_header(self):
-        ''' Update header from information in image'''
-        self._header.set_data_shape(self._data.shape)
+        ''' Harmonize header with image data and affine
+
+        >>> data = np.zeros((2,3,4))
+        >>> affine = np.diag([1.0,2.0,3.0,1.0])
+        >>> img = SpatialImage(data, affine)
+        >>> hdr = img.get_header()
+        >>> img.shape == (2, 3, 4)
+        True
+        >>> img.update_header()
+        >>> hdr.get_data_shape() == (2, 3, 4)
+        True
+        >>> hdr.get_zooms()
+        (1.0, 2.0, 3.0)
+        '''
+        hdr = self._header
+        shape = self._dataobj.shape
+        # We need to update the header if the data shape has changed.  It's a
+        # bit difficult to change the data shape using the standard API, but
+        # maybe it happened
+        if hdr.get_data_shape() != shape:
+            hdr.set_data_shape(shape)
+        # If the affine is not None, and it is different from the main affine in
+        # the header, update the heaader
+        if self._affine is None:
+            return
+        if np.allclose(self._affine, hdr.get_best_affine()):
+            return
+        self._affine2header()
+
+    def _affine2header(self):
+        """ Unconditionally set affine into the header """
+        RZS = self._affine[:3, :3]
+        vox = np.sqrt(np.sum(RZS * RZS, axis=0))
+        hdr = self._header
+        zooms = list(hdr.get_zooms())
+        n_to_set = min(len(zooms), 3)
+        zooms[:n_to_set] = vox[:n_to_set]
+        hdr.set_zooms(zooms)
 
     def __str__(self):
         shape = self.shape
@@ -338,11 +444,51 @@ class SpatialImage(object):
                 '%s' % self._header))
 
     def get_data(self):
-        return np.asanyarray(self._data)
+        """ Return image data from image with any necessary scalng applied
+
+        If the image data is a array proxy (data not yet read from disk) then
+        read the data, and store in an internal cache.  Future calls to
+        ``get_data`` will return the cached copy.
+
+        Returns
+        -------
+        data : array
+            array of image data
+        """
+        if self._data_cache is None:
+            self._data_cache = np.asanyarray(self._dataobj)
+        return self._data_cache
+
+    def uncache(self):
+        """ Delete any cached read of data from proxied data
+
+        Remember there are two types of images:
+
+        * *array images* where the data ``img.dataobj`` is an array
+        * *proxy images* where the data ``img.dataobj`` is a proxy object
+
+        If you call ``img.get_data()`` on a proxy image, the result of reading
+        from the proxy gets cached inside the image object, and this cache is
+        what gets returned from the next call to ``img.get_data()``.  If you
+        modify the returned data, as in::
+
+            data = img.get_data()
+            data[:] = 42
+
+        then the next call to ``img.get_data()`` returns the modified array,
+        whether the image is an array image or a proxy image::
+
+            assert np.all(img.get_data() == 42)
+
+        When you uncache an array image, this has no effect on the return of
+        ``img.get_data()``, but when you uncache a proxy image, the result of
+        ``img.get_data()`` returns to its original value.
+        """
+        self._data_cache = None
 
     @property
     def shape(self):
-        return self._data.shape
+        return self._dataobj.shape
 
     def get_shape(self):
         """ Return shape for image
@@ -361,10 +507,20 @@ class SpatialImage(object):
         self._header.set_data_dtype(dtype)
 
     def get_affine(self):
-        return self._affine
+        """ Get affine from image
+
+        Please use the `affine` property instead of `get_affine`; we will
+        deprecate this method in future versions of nibabel.
+        """
+        return self.affine
 
     def get_header(self):
-        return self._header
+        """ Get header from image
+
+        Please use the `header` property instead of `get_header`; we will
+        deprecate this method in future versions of nibabel.
+        """
+        return self.header
 
     def get_filename(self):
         ''' Fetch the image filename
@@ -554,8 +710,7 @@ class SpatialImage(object):
         cimg : ``spatialimage`` instance
            Image, of our own class
         '''
-        return klass(img.get_data(),
-                     img.get_affine(),
-                     klass.header_class.from_header(img.get_header()),
+        return klass(img._dataobj,
+                     img._affine,
+                     klass.header_class.from_header(img._header),
                      extra=img.extra.copy())
-

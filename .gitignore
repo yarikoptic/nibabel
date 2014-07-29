@@ -57,6 +57,7 @@ dist/
 *.egg-info/
 .shelf
 .tox/
+.coverage
 
 # Logs and databases #
 ######################
@@ -74,4 +75,5 @@ Thumbs.db
 
 # Things specific to this project #
 ###################################
-doc/source/generated
+doc/source/reference
+venv/

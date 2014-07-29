@@ -8,7 +8,7 @@ import os
 from os.path import join as pjoin
 import glob
 import sys
-import ConfigParser
+from .externals.six.moves import configparser
 from distutils.version import LooseVersion
 
 from .environment import get_nipy_user_dir, get_nipy_system_dir
@@ -122,14 +122,14 @@ class VersionedDatasource(Datasource):
         Datasource.__init__(self, base_path)
         if config_filename is None:
             config_filename = 'config.ini'
-        self.config = ConfigParser.SafeConfigParser()
+        self.config = configparser.SafeConfigParser()
         cfg_file = self.get_filename(config_filename)
         readfiles = self.config.read(cfg_file)
         if not readfiles:
             raise DataError('Could not read config file %s' % cfg_file)
         try:
             self.version = self.config.get('DEFAULT', 'version')
-        except ConfigParser.Error:
+        except configparser.Error:
             raise DataError('Could not get version from %s' % cfg_file)
         version_parts = self.version.split('.')
         self.major_version = int(version_parts[0])
@@ -140,13 +140,13 @@ class VersionedDatasource(Datasource):
 
 def _cfg_value(fname, section='DATA', value='path'):
     """ Utility function to fetch value from config file """
-    configp =  ConfigParser.ConfigParser()
+    configp =  configparser.ConfigParser()
     readfiles = configp.read(fname)
     if not readfiles:
         return ''
     try:
         return configp.get(section, value)
-    except ConfigParser.Error:
+    except configparser.Error:
         return ''
 
 
@@ -288,13 +288,12 @@ def make_datasource(pkg_def, **kwargs):
     names = unix_relpath.split('/')
     try:
         pth = find_data_dir(data_path, *names)
-    except DataError:
-        exception = sys.exc_info()[1] # Python 2 and 3 compatibility
+    except DataError as e:
         pth = [pjoin(this_data_path, *names)
-                for this_data_path in data_path]
+               for this_data_path in data_path]
         pkg_hint = pkg_def.get('install hint', DEFAULT_INSTALL_HINT)
         msg = ('%s; Is it possible you have not installed a data package?' %
-               exception)
+               e)
         if 'name' in pkg_def:
             msg += '\n\nYou may need the package "%s"' % pkg_def['name']
         if not pkg_hint is None:
@@ -347,9 +346,8 @@ def datasource_or_bomber(pkg_def, **options):
     sys_relpath = os.path.sep.join(names)
     try:
         ds = make_datasource(pkg_def, **options)
-    except DataError:
-        exception = sys.exc_info()[1] # python 2 and 3 compatibility
-        return Bomber(sys_relpath, exception)
+    except DataError as e:
+        return Bomber(sys_relpath, str(e))
     # check version
     if (version is None or
         LooseVersion(ds.version) >= LooseVersion(version)):

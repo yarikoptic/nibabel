@@ -39,16 +39,22 @@ from . import analyze as ana
 from . import spm99analyze as spm99
 from . import spm2analyze as spm2
 from . import nifti1 as ni1
-from . import minc
 from . import ecat
 # object imports
 from .fileholders import FileHolder, FileHolderError
 from .loadsave import load, save
+from .arrayproxy import is_proxy
 from .analyze import AnalyzeHeader, AnalyzeImage
 from .spm99analyze import Spm99AnalyzeHeader, Spm99AnalyzeImage
 from .spm2analyze import Spm2AnalyzeHeader, Spm2AnalyzeImage
 from .nifti1 import Nifti1Header, Nifti1Image, Nifti1Pair
-from .minc import MincImage
+from .nifti2 import Nifti2Header, Nifti2Image, Nifti2Pair
+from .minc1 import Minc1Image
+from .minc2 import Minc2Image
+# Deprecated backwards compatiblity for MINC1
+from .deprecated import ModuleProxy as _ModuleProxy
+minc = _ModuleProxy('nibabel.minc')
+from .minc1 import MincImage
 from .freesurfer import MGHImage
 from .funcs import (squeeze_image, concat_images, four_to_three,
                     as_closest_canonical)
@@ -69,4 +75,6 @@ except ImportError:
     def test(*args, **kwargs): raise RuntimeError('Need numpy >= 1.2 for tests')
 
 from .pkg_info import get_pkg_info as _get_pkg_info
-get_info = lambda : _get_pkg_info(os.path.dirname(__file__))
+
+def get_info():
+    return _get_pkg_info(os.path.dirname(__file__))

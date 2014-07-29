@@ -1,3 +1,5 @@
+from __future__ import division, print_function, absolute_import
+
 from os.path import join as pjoin
 import glob
 
@@ -35,11 +37,15 @@ def mosaic_to_nii(dcm_data):
     return nib.Nifti1Image(data, aff)
 
 
-def read_mosaic_dwi_dir(dicom_path, globber='*.dcm'):
-    return read_mosaic_dir(dicom_path, globber, check_is_dwi=True)
+def read_mosaic_dwi_dir(dicom_path, globber='*.dcm', dicom_kwargs=None):
+    return read_mosaic_dir(dicom_path,
+                           globber,
+                           check_is_dwi=True,
+                           dicom_kwargs=dicom_kwargs)
 
 
-def read_mosaic_dir(dicom_path, globber='*.dcm', check_is_dwi=False):
+def read_mosaic_dir(dicom_path,
+                    globber='*.dcm', check_is_dwi=False, dicom_kwargs=None):
     ''' Read all Siemens mosaic DICOMs in directory, return arrays, params
 
     Parameters
@@ -52,6 +58,8 @@ def read_mosaic_dir(dicom_path, globber='*.dcm', check_is_dwi=False):
     check_is_dwi : bool, optional
        If True, raises an error if we don't find DWI information in the
        DICOM headers.
+    dicom_kwargs : None or dict
+       Extra keyword arguments to pass to the pydicom ``read_file`` function.
 
     Returns
     -------
@@ -68,6 +76,8 @@ def read_mosaic_dir(dicom_path, globber='*.dcm', check_is_dwi=False):
        gradient directions of unit length for each acquisition.  (nan,
        nan, nan) if we did not find diffusion information.
     '''
+    if dicom_kwargs is None:
+        dicom_kwargs = {}
     full_globber = pjoin(dicom_path, globber)
     filenames = sorted(glob.glob(full_globber))
     b_values = []
@@ -76,7 +86,7 @@ def read_mosaic_dir(dicom_path, globber='*.dcm', check_is_dwi=False):
     if len(filenames) == 0:
         raise IOError('Found no files with "%s"' % full_globber)
     for fname in filenames:
-        dcm_w = wrapper_from_file(fname)
+        dcm_w = wrapper_from_file(fname, **dicom_kwargs)
         # Because the routine sorts by filename, it only makes sense to use this
         # order for mosaic images.  Slice by slice dicoms need more sensible
         # sorting
@@ -95,8 +105,8 @@ def read_mosaic_dir(dicom_path, globber='*.dcm', check_is_dwi=False):
             b = np.nan
             g = np.ones((3,)) + np.nan
         else:
-            b = np.sqrt(np.sum(q * q)) # vector norm
-            g = q / b
+            b = dcm_w.b_value
+            g = dcm_w.b_vector
         b_values.append(b)
         gradients.append(g)
     affine = np.dot(DPCS_TO_TAL, dcm_w.get_affine())
@@ -131,7 +141,7 @@ def slices_to_series(wrappers):
                 break
         else: # no match in current volume lists
             volume_lists.append([dw])
-    print 'We appear to have %d Series' % len(volume_lists)
+    print('We appear to have %d Series' % len(volume_lists))
     # second pass
     out_vol_lists = []
     for vol_list in volume_lists:
@@ -143,7 +153,7 @@ def slices_to_series(wrappers):
                 out_vol_lists += _third_pass(vol_list)
                 continue
         out_vol_lists.append(vol_list)
-    print 'We have %d volumes after second pass' % len(out_vol_lists)
+    print('We have %d volumes after second pass' % len(out_vol_lists))
     # final pass check
     for vol_list in out_vol_lists:
         zs = [s.slice_indicator for s in vol_list]

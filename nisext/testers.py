@@ -29,21 +29,71 @@ the Makefile targets from nibabel::
 
 '''
 
+from __future__ import print_function
+
 import os
+import sys
 from os.path import join as pjoin, abspath
 from glob import glob
 import shutil
 import tempfile
 import zipfile
 import re
-from subprocess import call
-from functools import partial
+from subprocess import Popen, PIPE
 
-my_call = partial(call, shell=True)
+NEEDS_SHELL = os.name != 'nt'
+PYTHON=sys.executable
+HAVE_PUTENV = hasattr(os, 'putenv')
 
 PY_LIB_SDIR = 'pylib'
 
-def run_mod_cmd(mod_name, pkg_path, cmd):
+def back_tick(cmd, ret_err=False, as_str=True):
+    """ Run command `cmd`, return stdout, or stdout, stderr if `ret_err`
+
+    Roughly equivalent to ``check_output`` in Python 2.7
+
+    Parameters
+    ----------
+    cmd : str
+        command to execute
+    ret_err : bool, optional
+        If True, return stderr in addition to stdout.  If False, just return
+        stdout
+    as_str : bool, optional
+        Whether to decode outputs to unicode string on exit.
+
+    Returns
+    -------
+    out : str or tuple
+        If `ret_err` is False, return stripped string containing stdout from
+        `cmd`.  If `ret_err` is True, return tuple of (stdout, stderr) where
+        ``stdout`` is the stripped stdout, and ``stderr`` is the stripped
+        stderr.
+
+    Raises
+    ------
+    Raises RuntimeError if command returns non-zero exit code
+    """
+    proc = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=NEEDS_SHELL)
+    out, err = proc.communicate()
+    retcode = proc.returncode
+    if retcode is None:
+        proc.terminate()
+        raise RuntimeError(cmd + ' process did not terminate')
+    if retcode != 0:
+        raise RuntimeError(cmd + ' process returned code %d' % retcode)
+    out = out.strip()
+    if as_str:
+        out = out.decode('latin-1')
+    if not ret_err:
+        return out
+    err = err.strip()
+    if as_str:
+        err = err.decode('latin-1')
+    return out, err
+
+
+def run_mod_cmd(mod_name, pkg_path, cmd, script_dir=None, print_location=True):
     ''' Run command in own process in anonymous path
 
     Parameters
@@ -53,21 +103,62 @@ def run_mod_cmd(mod_name, pkg_path, cmd):
     pkg_path : str
         directory containing `mod_name` package.  Typically that will be the
         directory containing the e.g. 'nibabel' directory.
+    cmd : str
+        Python command to execute
+    script_dir : None or str, optional
+        script directory to prepend to PATH
+    print_location : bool, optional
+        Whether to print the location of the imported `mod_name`
+
+    Returns
+    -------
+    stdout : str
+        stdout as str
+    stderr : str
+        stderr as str
     '''
+    if script_dir is None:
+        paths_add = ''
+    else:
+        if not HAVE_PUTENV:
+            raise RuntimeError('We cannot set environment variables')
+        # Need to add the python path for the scripts to pick up our package in
+        # their environment, because the scripts will get called via the shell
+        # (via `cmd`). Consider that PYTHONPATH may not be set. Because the
+        # command might run scripts via the shell, prepend script_dir to the
+        # system path also.
+        paths_add = \
+r"""
+os.environ['PATH'] = r'"{script_dir}"' + os.path.pathsep + os.environ['PATH']
+PYTHONPATH = os.environ.get('PYTHONPATH')
+if PYTHONPATH is None:
+    os.environ['PYTHONPATH'] = r'"{pkg_path}"'
+else:
+    os.environ['PYTHONPATH'] = r'"{pkg_path}"' + os.path.pathsep + PYTHONPATH
+""".format(**locals())
+    if print_location:
+        p_loc = 'print(%s.__file__);' % mod_name
+    else:
+        p_loc = ''
     cwd = os.getcwd()
     tmpdir = tempfile.mkdtemp()
     try:
         os.chdir(tmpdir)
-        my_call('python -c "import sys; sys.path.insert(1,\'%s\'); '
-                'import %s;'
-                'print(%s.__file__);'
-                '%s"' % (pkg_path,
-                         mod_name,
-                         mod_name,
-                         cmd))
+        with open('script.py', 'wt') as fobj:
+            fobj.write(
+r"""
+import os
+import sys
+sys.path.insert(0, r"{pkg_path}")
+{paths_add}
+import {mod_name}
+{p_loc}
+{cmd}""".format(**locals()))
+        res = back_tick('{0} script.py'.format(PYTHON), ret_err=True)
     finally:
         os.chdir(cwd)
         shutil.rmtree(tmpdir)
+    return res
 
 
 def zip_extract_all(fname, path=None):
@@ -103,10 +194,11 @@ def install_from_to(from_dir, to_dir, py_lib_sdir=PY_LIB_SDIR, bin_sdir='bin'):
     py_lib_locs = ' --install-purelib=%s --install-platlib=%s' % (
         site_pkgs_path, site_pkgs_path)
     pwd = os.path.abspath(os.getcwd())
+    cmd = ('%s setup.py --quiet install --prefix=%s %s' %
+           (PYTHON, to_dir, py_lib_locs))
     try:
         os.chdir(from_dir)
-        my_call('python setup.py --quiet install --prefix=%s %s' % (to_dir,
-                                                                    py_lib_locs))
+        back_tick(cmd)
     finally:
         os.chdir(pwd)
 
@@ -175,17 +267,17 @@ def contexts_print_info(mod_name, repo_path, install_path):
     out_fname = pjoin(install_path, 'test.zip')
     try:
         os.chdir(repo_path)
-        my_call('git archive --format zip -o %s HEAD' % out_fname)
+        back_tick('git archive --format zip -o %s HEAD' % out_fname)
     finally:
         os.chdir(pwd)
     install_from_zip(out_fname, install_path, None)
     cmd_str = 'print(%s.get_info())' % mod_name
-    run_mod_cmd(mod_name, site_pkgs_path, cmd_str)
+    print(run_mod_cmd(mod_name, site_pkgs_path, cmd_str)[0])
     # now test install into a directory from the repository
     install_from_to(repo_path, install_path, PY_LIB_SDIR)
-    run_mod_cmd(mod_name, site_pkgs_path, cmd_str)
+    print(run_mod_cmd(mod_name, site_pkgs_path, cmd_str)[0])
     # test from development tree
-    run_mod_cmd(mod_name, repo_path, cmd_str)
+    print(run_mod_cmd(mod_name, repo_path, cmd_str)[0])
     return
 
 
@@ -222,11 +314,17 @@ def tests_installed(mod_name, source_path=None):
         source_path = os.path.abspath(os.getcwd())
     install_path = tempfile.mkdtemp()
     site_pkgs_path = pjoin(install_path, PY_LIB_SDIR)
+    scripts_path = pjoin(install_path, 'bin')
     try:
-        install_from_to(source_path, install_path, PY_LIB_SDIR)
-        run_mod_cmd(mod_name, site_pkgs_path, mod_name + '.test()')
+        install_from_to(source_path, install_path, PY_LIB_SDIR, 'bin')
+        stdout, stderr = run_mod_cmd(mod_name,
+                                     site_pkgs_path,
+                                     mod_name + '.test()',
+                                     scripts_path)
     finally:
         shutil.rmtree(install_path)
+    print(stdout)
+    print(stderr)
 
 # Tell nose this is not a test
 tests_installed.__test__ = False
@@ -311,13 +409,13 @@ def check_files(mod_name, repo_path=None, scripts_sdir='bin'):
     finally:
         shutil.rmtree(install_path)
     if lib_misses:
-        print "Missed library files: ", ', '.join(lib_misses)
+        print("Missed library files: ", ', '.join(lib_misses))
     else:
-        print "You got all the library files"
+        print("You got all the library files")
     if script_misses:
-        print "Missed script files: ", ', '.join(script_misses)
+        print("Missed script files: ", ', '.join(script_misses))
     else:
-        print "You got all the script files"
+        print("You got all the script files")
     return len(lib_misses) > 0 or len(script_misses) > 0
 
 
@@ -332,7 +430,7 @@ def get_sdist_finder(mod_name):
     return pf
 
 
-def sdist_tests(mod_name, repo_path=None):
+def sdist_tests(mod_name, repo_path=None, label='fast', doctests=True):
     """ Make sdist zip, install from it, and run tests """
     if repo_path is None:
         repo_path = abspath(os.getcwd())
@@ -342,30 +440,54 @@ def sdist_tests(mod_name, repo_path=None):
                               install_path,
                               'sdist --formats=zip',
                               '*.zip')
-        site_pkgs_path = pjoin(install_path, PY_LIB_SDIR)
         pf = get_sdist_finder(mod_name)
-        install_from_zip(zip_fname, install_path, pf, PY_LIB_SDIR)
-        run_mod_cmd(mod_name, site_pkgs_path, mod_name + '.test()')
+        install_from_zip(zip_fname, install_path, pf, PY_LIB_SDIR, 'bin')
+        site_pkgs_path = pjoin(install_path, PY_LIB_SDIR)
+        script_path = pjoin(install_path, 'bin')
+        cmd = "%s.test(label='%s', doctests=%s)" % (mod_name, label, doctests)
+        stdout, stderr = run_mod_cmd(mod_name,
+                                     site_pkgs_path,
+                                     cmd,
+                                     script_path)
     finally:
         shutil.rmtree(install_path)
+    print(stdout)
+    print(stderr)
 
 sdist_tests.__test__ = False
 
 
-def bdist_egg_tests(mod_name, repo_path=None):
-    """ Make bdist_egg, unzip it, and run tests from result """
+def bdist_egg_tests(mod_name, repo_path=None, label='fast', doctests=True):
+    """ Make bdist_egg, unzip it, and run tests from result
+
+    We've got a problem here, because the egg does not contain the scripts, and
+    so, if we are testing the scripts with ``mod.test()``, we won't pick up the
+    scripts from the repository we are testing.
+
+    So, you might need to add a label to the script tests, and use the `label`
+    parameter to indicate these should be skipped. As in:
+
+        bdist_egg_tests('nibabel', None, label='not script_test')
+    """
     if repo_path is None:
         repo_path = abspath(os.getcwd())
     install_path = tempfile.mkdtemp()
+    scripts_path = pjoin(install_path, 'bin')
     try:
         zip_fname = make_dist(repo_path,
                               install_path,
                               'bdist_egg',
                               '*.egg')
         zip_extract_all(zip_fname, install_path)
-        run_mod_cmd(mod_name, install_path, mod_name + '.test()')
+        cmd = "%s.test(label='%s', doctests=%s)" % (mod_name, label, doctests)
+        stdout, stderr = run_mod_cmd(mod_name,
+                                     install_path,
+                                     cmd,
+                                     scripts_path)
     finally:
         shutil.rmtree(install_path)
+    print(stdout)
+    print(stderr)
 
 bdist_egg_tests.__test__ = False
 
@@ -402,8 +524,8 @@ def make_dist(repo_path, out_dir, setup_params, zipglob):
     pwd = os.path.abspath(os.getcwd())
     try:
         os.chdir(repo_path)
-        my_call('python setup.py %s --dist-dir=%s'
-                % (setup_params, out_dir))
+        back_tick('%s setup.py %s --dist-dir=%s'
+                  % (PYTHON, setup_params, out_dir))
         zips = glob(pjoin(out_dir, zipglob))
         if len(zips) != 1:
             raise OSError('There must be one and only one %s file, '

@@ -22,6 +22,7 @@ import copy
 from .spatialimages import SpatialImage, Header
 from .eulerangles import euler2mat
 from .volumeutils import Recoder
+from .arrayproxy import ArrayProxy
 
 # PAR header versions we claim to understand
 supported_versions = ['V4.2']
@@ -580,29 +581,13 @@ class PARRECImage(SpatialImage):
     header_class = PARRECHeader
     files_types = (('image', '.rec'), ('header', '.par'))
 
-    class ImageArrayProxy(object):
-        def __init__(self, rec_fobj, hdr):
-            self._rec_fobj = rec_fobj
-            self._hdr = hdr
-            self._data = None
-
-        def __array__(self):
-            ''' Cached read of data from file '''
-            if self._data is None:
-                self._data = self._hdr.data_from_fileobj(self._rec_fobj)
-            return self._data
-
-        @property
-        def shape(self):
-            # embedded header knows it, without having to touch the data
-            return self._hdr.get_data_shape()
-
+    ImageArrayProxy = ArrayProxy
 
     @classmethod
     def from_file_map(klass, file_map):
-        hdr_fobj = file_map['header'].get_prepare_fileobj()
+        with file_map['header'].get_prepare_fileobj() as hdr_fobj:
+            hdr = PARRECHeader.from_fileobj(hdr_fobj)
         rec_fobj = file_map['image'].get_prepare_fileobj()
-        hdr = PARRECHeader.from_fileobj(hdr_fobj)
         data = klass.ImageArrayProxy(rec_fobj, hdr)
         return klass(data,
                      hdr.get_affine(),

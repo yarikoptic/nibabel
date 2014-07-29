@@ -6,7 +6,7 @@
 #   copyright and license terms.
 #
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
-''' Header and image for the basic Mayo Analyze format
+''' Read / write access to the basic Mayo Analyze format
 
 ===========================
  The Analyze header format
@@ -25,6 +25,7 @@ with methods::
     .get/set_data_shape
     .get/set_data_dtype
     .get/set_zooms
+    .get/set_data_offset
     .get_base_affine()
     .get_best_affine()
     .data_to_fileobj
@@ -80,15 +81,15 @@ zooms, in particular, negative X zooms.  We did not do this because the image
 can be loaded with and without a default flip, so the saved zoom will not
 constrain the affine.
 '''
-import sys
 
 import numpy as np
 
-from .volumeutils import (native_code, swapped_code, make_dt_codes, allopen,
+from .volumeutils import (native_code, swapped_code, make_dt_codes,
                           shape_zoom_affine, array_from_file, seek_tell,
                           apply_read_scaling)
-from .arraywriters import make_array_writer, get_slope_inter, WriterError
-from .wrapstruct import WrapStruct
+from .arraywriters import (make_array_writer, get_slope_inter, WriterError,
+                           ArrayWriter)
+from .wrapstruct import LabeledWrapStruct
 from .spatialimages import (HeaderDataError, HeaderTypeError,
                             SpatialImage)
 from .fileholders import copy_file_map
@@ -169,7 +170,7 @@ _dtdefs = ( # code, conversion function, equivalent dtype, aliases
 data_type_codes = make_dt_codes(_dtdefs)
 
 
-class AnalyzeHeader(WrapStruct):
+class AnalyzeHeader(LabeledWrapStruct):
     ''' Class for basic analyze header
 
     Implements zoom-only setting of affine transform, and no image
@@ -186,6 +187,8 @@ class AnalyzeHeader(WrapStruct):
     # data scaling capabilities
     has_data_slope = False
     has_data_intercept = False
+
+    sizeof_hdr = 348
 
     def __init__(self,
                  binaryblock=None,
@@ -314,7 +317,7 @@ class AnalyzeHeader(WrapStruct):
         >>> AnalyzeHeader.guessed_endian(hdr_data) == native_code
         True
 
-        This is overridden by the ``dim``[0] value though:
+        This is overridden by the ``dim[0]`` value though:
 
         >>> hdr_data['sizeof_hdr'] = 1543569408
         >>> hdr_data['dim'][0] = 1
@@ -323,7 +326,7 @@ class AnalyzeHeader(WrapStruct):
         '''
         dim0 = int(hdr['dim'][0])
         if dim0 == 0:
-            if hdr['sizeof_hdr'] == 1543569408:
+            if hdr['sizeof_hdr'].byteswap() == klass.sizeof_hdr:
                 return swapped_code
             return native_code
         elif 1 <= dim0 <= 7:
@@ -335,44 +338,13 @@ class AnalyzeHeader(WrapStruct):
         ''' Return header data for empty header with given endianness
         '''
         hdr_data = super(AnalyzeHeader, klass).default_structarr(endianness)
-        hdr_data['sizeof_hdr'] = 348
+        hdr_data['sizeof_hdr'] = klass.sizeof_hdr
         hdr_data['dim'] = 1
         hdr_data['dim'][0] = 0
         hdr_data['pixdim'] = 1
         hdr_data['datatype'] = 16 # float32
         hdr_data['bitpix'] = 32
         return hdr_data
-
-    def get_value_label(self, fieldname):
-        ''' Returns label for coded field
-
-        A coded field is an int field containing codes that stand for
-        discrete values that also have string labels.
-
-        Parameters
-        ----------
-        fieldname : str
-           name of header field to get label for
-
-        Returns
-        -------
-        label : str
-           label for code value in header field `fieldname`
-
-        Raises
-        ------
-        ValueError : if field is not coded
-
-        Examples
-        --------
-        >>> hdr = AnalyzeHeader()
-        >>> hdr.get_value_label('datatype')
-        'float32'
-        '''
-        if not fieldname in self._field_recoders:
-            raise ValueError('%s not a coded field' % fieldname)
-        code = int(self._structarr[fieldname])
-        return self._field_recoders[fieldname].label[code]
 
     @classmethod
     def from_header(klass, header=None, check=True):
@@ -491,12 +463,12 @@ class AnalyzeHeader(WrapStruct):
         # Upcast as necessary for big slopes, intercepts
         return apply_read_scaling(data, slope, inter)
 
-    def data_to_fileobj(self, data, fileobj):
-        ''' Write `data` to `fileobj`, maybe modifying `self`
+    def data_to_fileobj(self, data, fileobj, rescale=True):
+        ''' Write `data` to `fileobj`, maybe rescaling data, modifying `self`
 
         In writing the data, we match the header to the written data, by
-        setting the header scaling factors.  Thus we modify `self` in
-        the process of writing the data.
+        setting the header scaling factors, iff `rescale` is True.  Thus we
+        modify `self` in the process of writing the data.
 
         Parameters
         ----------
@@ -505,6 +477,10 @@ class AnalyzeHeader(WrapStruct):
         fileobj : file-like object
            Object with file interface, implementing ``write`` and
            ``seek``
+        rescale : {True, False}, optional
+            Whether to try and rescale data to match output dtype specified by
+            header. If True and scaling needed and header cannot scale, then
+            raise ``HeaderTypeError``.
 
         Examples
         --------
@@ -512,8 +488,8 @@ class AnalyzeHeader(WrapStruct):
         >>> hdr = AnalyzeHeader()
         >>> hdr.set_data_shape((1, 2, 3))
         >>> hdr.set_data_dtype(np.float64)
-        >>> from StringIO import StringIO #23dt : BytesIO
-        >>> str_io = StringIO() #23dt : BytesIO
+        >>> from io import BytesIO
+        >>> str_io = BytesIO()
         >>> data = np.arange(6).reshape(1,2,3)
         >>> hdr.data_to_fileobj(data, str_io)
         >>> data.astype(np.float64).tostring('F') == str_io.getvalue()
@@ -525,14 +501,16 @@ class AnalyzeHeader(WrapStruct):
             raise HeaderDataError('Data should be shape (%s)' %
                                   ', '.join(str(s) for s in shape))
         out_dtype = self.get_data_dtype()
-        try:
-            arr_writer = make_array_writer(data,
-                                           out_dtype,
-                                           self.has_data_slope,
-                                           self.has_data_intercept)
-        except WriterError:
-            msg = sys.exc_info()[1] # python 2 / 3 compatibility
-            raise HeaderTypeError(msg)
+        if rescale:
+            try:
+                arr_writer = make_array_writer(data,
+                                               out_dtype,
+                                               self.has_data_slope,
+                                               self.has_data_intercept)
+            except WriterError as e:
+                raise HeaderTypeError(str(e))
+        else:
+            arr_writer = ArrayWriter(data, out_dtype, check_scaling=False)
         seek_tell(fileobj, self.get_data_offset())
         arr_writer.to_fileobj(fileobj)
         self.set_slope_inter(*get_slope_inter(arr_writer))
@@ -622,11 +600,18 @@ class AnalyzeHeader(WrapStruct):
         ndims = len(shape)
         dims[:] = 1
         dims[0] = ndims
-        dims[1:ndims+1] = shape
-        # Check that dimensions fit
-        if not np.all(dims[1:ndims+1] == shape):
+        try:
+            dims[1:ndims+1] = shape
+        except (ValueError, OverflowError):
+            # numpy 1.4.1 at least generates a ValueError from trying to set a
+            # python long into an int64 array (dims are int64 for nifti2)
+            values_fit = False
+        else:
+            values_fit = np.all(dims[1:ndims+1] == shape)
+        # Error if we did not succeed setting dimensions
+        if not values_fit:
             raise HeaderDataError('shape %s does not fit in dim datatype' %
-                                   (shape,))
+                                  (shape,))
         self._structarr['pixdim'][ndims+1:] = 1.0
 
     def get_base_affine(self):
@@ -705,6 +690,11 @@ class AnalyzeHeader(WrapStruct):
     def as_analyze_map(self):
         return self
 
+    def set_data_offset(self, offset):
+        """ Set offset into data file to read data
+        """
+        self._structarr['vox_offset'] = offset
+
     def get_data_offset(self):
         ''' Return offset into data file to read data
 
@@ -734,17 +724,18 @@ class AnalyzeHeader(WrapStruct):
         slope) + inter``
 
         In this case, for Analyze images, we can't store the slope or the
-        intercept, so this method only checks that `slope` is None or 1.0, and
-        that `inter` is None or 0.
+        intercept, so this method only checks that `slope` is None or NaN or
+        1.0, and that `inter` is None or NaN or 0.
 
         Parameters
         ----------
         slope : None or float
-            If float, value must be 1.0 or we raise a ``HeaderTypeError``
+            If float, value must be NaN or 1.0 or we raise a ``HeaderTypeError``
         inter : None or float, optional
             If float, value must be 0.0 or we raise a ``HeaderTypeError``
         '''
-        if (slope is None or slope == 1.0) and (inter is None or inter == 0):
+        if ((slope in (None, 1) or np.isnan(slope)) and
+            (inter in (None, 0) or np.isnan(inter))):
             return
         raise HeaderTypeError('Cannot set slope != 1 or intercept != 0 '
                               'for Analyze headers')
@@ -759,16 +750,16 @@ class AnalyzeHeader(WrapStruct):
 
     ''' Check functions in format expected by BatteryRunner class '''
 
-    @staticmethod
-    def _chk_sizeof_hdr(hdr, fix=False):
+    @classmethod
+    def _chk_sizeof_hdr(klass, hdr, fix=False):
         rep = Report(HeaderDataError)
-        if hdr['sizeof_hdr'] == 348:
+        if hdr['sizeof_hdr'] == klass.sizeof_hdr:
             return hdr, rep
         rep.problem_level = 30
-        rep.problem_msg = 'sizeof_hdr should be 348'
+        rep.problem_msg = 'sizeof_hdr should be ' + str(klass.sizeof_hdr)
         if fix:
-            hdr['sizeof_hdr'] = 348
-            rep.fix_msg = 'set sizeof_hdr to 348'
+            hdr['sizeof_hdr'] = klass.sizeof_hdr
+            rep.fix_msg = 'set sizeof_hdr to ' + str(klass.sizeof_hdr)
         return hdr, rep
 
     @classmethod
@@ -850,6 +841,15 @@ class AnalyzeImage(SpatialImage):
 
     ImageArrayProxy = ArrayProxy
 
+    def __init__(self, dataobj, affine, header=None,
+                 extra=None, file_map=None):
+        super(AnalyzeImage, self).__init__(
+            dataobj, affine, header, extra, file_map)
+        # Reset consumable values
+        self._header.set_data_offset(0)
+        self._header.set_slope_inter(None, None)
+    __init__.__doc__ = SpatialImage.__init__.__doc__
+
     def get_header(self):
         ''' Return header
         '''
@@ -866,10 +866,8 @@ class AnalyzeImage(SpatialImage):
         ''' class method to create image from mapping in `file_map ``
         '''
         hdr_fh, img_fh = klass._get_fileholders(file_map)
-        hdrf = hdr_fh.get_prepare_fileobj(mode='rb')
-        header = klass.header_class.from_fileobj(hdrf)
-        if hdr_fh.fileobj is None: # was filename
-            hdrf.close()
+        with hdr_fh.get_prepare_fileobj(mode='rb') as hdrf:
+            header = klass.header_class.from_fileobj(hdrf)
         hdr_copy = header.copy()
         imgf = img_fh.fileobj
         if imgf is None:
@@ -894,22 +892,6 @@ class AnalyzeImage(SpatialImage):
         """
         return file_map['header'], file_map['image']
 
-    def _write_header(self, header_file, header, slope, inter):
-        ''' Utility routine to write header
-
-        Parameters
-        ----------
-        header_file : file-like
-           file-like object implementing ``write``, open for writing
-        header : header object
-        slope : None or float
-           slope for data scaling
-        inter : None or float
-           intercept for data scaling
-        '''
-        header.set_slope_inter(slope, inter)
-        header.write_to(header_file)
-
     def to_file_map(self, file_map=None):
         ''' Write image to `file_map` or contained ``self.file_map``
 
@@ -923,12 +905,24 @@ class AnalyzeImage(SpatialImage):
             file_map = self.file_map
         data = self.get_data()
         self.update_header()
-        hdr = self.get_header()
+        hdr = self._header
         out_dtype = self.get_data_dtype()
-        arr_writer = make_array_writer(data,
-                                       out_dtype,
-                                       hdr.has_data_slope,
-                                       hdr.has_data_intercept)
+        # Store consumable values for later restore
+        offset = hdr.get_data_offset()
+        # Scalars of slope, offset to get immutable values
+        slope = (np.asscalar(hdr['scl_slope']) if hdr.has_data_slope
+                 else np.nan)
+        inter = (np.asscalar(hdr['scl_inter']) if hdr.has_data_intercept
+                 else np.nan)
+        # Check whether to calculate slope / inter
+        scale_me = np.all(np.isnan((slope, inter)))
+        if scale_me:
+            arr_writer = make_array_writer(data,
+                                           out_dtype,
+                                           hdr.has_data_slope,
+                                           hdr.has_data_intercept)
+        else:
+            arr_writer = ArrayWriter(data, out_dtype, check_scaling=False)
         hdr_fh, img_fh = self._get_fileholders(file_map)
         # Check if hdr and img refer to same file; this can happen with odd
         # analyze images but most often this is because it's a single nifti file
@@ -938,53 +932,31 @@ class AnalyzeImage(SpatialImage):
             imgf = hdrf
         else:
             imgf = img_fh.get_prepare_fileobj(mode='wb')
-        slope, inter = get_slope_inter(arr_writer)
-        self._write_header(hdrf, hdr, slope, inter)
+        # Rescale values if asked
+        if scale_me:
+            hdr.set_slope_inter(*get_slope_inter(arr_writer))
+        # Write header
+        hdr.write_to(hdrf)
         # Write image
         shape = hdr.get_data_shape()
         if data.shape != shape:
             raise HeaderDataError('Data should be shape (%s)' %
                                   ', '.join(str(s) for s in shape))
-        seek_tell(imgf, hdr.get_data_offset())
+        # Seek to writing position, get there by writing zeros if seek fails
+        seek_tell(imgf, hdr.get_data_offset(), write0=True)
+        # Write array data
         arr_writer.to_fileobj(imgf)
-        if hdr_fh.fileobj is None: # was filename
-            hdrf.close()
+        hdrf.close_if_mine()
         if not hdr_img_same:
-            if img_fh.fileobj is None: # was filename
-                imgf.close()
+            imgf.close_if_mine()
         self._header = hdr
         self.file_map = file_map
-
-    def update_header(self):
-        ''' Harmonize header with image data and affine
-
-        >>> data = np.zeros((2,3,4))
-        >>> affine = np.diag([1.0,2.0,3.0,1.0])
-        >>> img = AnalyzeImage(data, affine)
-        >>> hdr = img.get_header()
-        >>> img.shape == (2, 3, 4)
-        True
-        >>> img.update_header()
-        >>> hdr.get_data_shape() == (2, 3, 4)
-        True
-        >>> hdr.get_zooms()
-        (1.0, 2.0, 3.0)
-        '''
-        hdr = self._header
-        # We need to update the header if the data shape has changed.  It's a
-        # bit difficult to change the data shape using the standard API, but
-        # maybe it happened
-        if not self._data is None and hdr.get_data_shape() != self._data.shape:
-            hdr.set_data_shape(self._data.shape)
-        # If the affine is not None, and it is different from the main affine in
-        # the header, update the heaader
-        if self._affine is None:
-            return
-        if np.allclose(self._affine, hdr.get_best_affine()):
-            return
-        RZS = self._affine[:3, :3]
-        vox = np.sqrt(np.sum(RZS * RZS, axis=0))
-        hdr['pixdim'][1:4] = vox
+        # Restore any changed consumable values
+        hdr.set_data_offset(offset)
+        if hdr.has_data_slope:
+            hdr['scl_slope'] = slope
+        if hdr.has_data_intercept:
+            hdr['scl_inter'] = inter
 
 
 load = AnalyzeImage.load

@@ -44,7 +44,7 @@ Release checklist
   outstanding issues that can be closed, and whether there are any issues that
   should delay the release.  Label them !
 
-* Review and update the release notes.  Review and update the :file:`Changelog`
+* Review and update the release notes.  Review and update the ``Changelog``
   file.  Get a partial list of contributors with something like::
 
       git log 1.2.0.. | grep '^Author' | cut -d' ' -f 2- | sort | uniq
@@ -54,8 +54,13 @@ Release checklist
   Then manually go over ``git shortlog 1.2.0..`` to make sure the release notes
   are as complete as possible and that every contributor was recognized.
 
+* Update thanks to authors in ``doc/source/index.rst`` and consider any updates
+  to the ``AUTHOR`` file.
+
 * Use the opportunity to update the ``.mailmap`` file if there are any duplicate
   authors listed from ``git shortlog -nse``.
+
+* Check the copyright year in ``doc/source/conf.py``
 
 * Check the ``long_description`` in ``nibabel/info.py``.  Check it matches the
   ``README`` in the root directory.  Check the output of::
@@ -63,6 +68,10 @@ Release checklist
     rst2html.py README.rst > ~/tmp/readme.html
 
   becase this will be the output used by pypi_
+
+* Check the dependencies listed in ``nibabel/info.py`` (e.g.
+  ``NUMPY_MIN_VERSION``) and in ``doc/source/installation.rst``.  They should at
+  least match. Do they still hold?
 
 * Do a final check on the `nipy buildbot`_
 
@@ -172,7 +181,7 @@ Release checklist
 
 * The release should now be ready.
 
-* Edit :file:`nibabel/info.py` to set ``_version_extra`` to ``''``; commit.
+* Edit ``nibabel/info.py`` to set ``_version_extra`` to ``''``; commit.
   Then::
 
     make source-release
@@ -198,14 +207,29 @@ Release checklist
     python setup.py register
     python setup.py sdist --formats=gztar,zip upload
 
-  From somewhere - maybe a windows machine - upload the windows installer for
-  convenience::
-
-    python setup.py bdist_wininst upload
-
 * Tag the release with tag of form ``1.1.0``::
 
     git tag -am 'Second main release' 1.1.0
+
+* Push the tag and any other changes to trunk with::
+
+    git push --tags
+
+* Force builds of the win32 and amd64 binaries from the buildbot. Go to pages:
+
+  * http://nipy.bic.berkeley.edu/builders/nibabel-bdist32
+  * http://nipy.bic.berkeley.edu/builders/nibabel-bdist64
+
+  For each of these, enter the revision number (e.g. "1.3.0") in the field
+  "Revision to build". Then get the built binaries in:
+
+  * http://nipy.bic.berkeley.edu/dist-32
+  * http://nipy.bic.berkeley.edu/dist-64
+
+  and upload them to pypi with the admin files interface.
+
+  If you are already on a windows machine, you could have done the manual
+  command to upload instead: ``python setup.py bdist_wininst upload``.
 
 * Now the version number is OK, push the docs to sourceforge with::
 
@@ -238,12 +262,18 @@ Release checklist
     Thus the development series ('trunk') will have a version number here of
     '1.1.0.dev' and the next full release will be '1.1.0'.
 
+    Next merge the maintenace branch with the "ours" strategy.  This just labels
+    the maintenance `info.py` edits as seen but discarded, so we can merge from
+    maintenance in future without getting spurious merge conflicts::
+
+       git merge -s ours maint/1.3.x
+
   If this is just a maintenance release from ``maint/1.0.x`` or similar, just
   tag and set the version number to - say - ``1.0.2.dev``.
 
-* Push tags::
+* Push the main branch::
 
-    git push --tags
+    git push main-master
 
 * Make next development release tag
 

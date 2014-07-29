@@ -1,5 +1,6 @@
 """ Read and write trackvis files
 """
+from __future__ import division, print_function
 import warnings
 import struct
 import itertools
@@ -7,11 +8,16 @@ import itertools
 import numpy as np
 import numpy.linalg as npl
 
-from .py3k import asbytes, asstr
-from .volumeutils import (native_code, swapped_code, endian_codes,
-                          allopen, rec2dict)
+from .py3k import asstr
+from .volumeutils import (native_code, swapped_code, endian_codes, rec2dict)
+from .volumeutils import BinOpener
 from .orientations import aff2axcodes
 from .affines import apply_affine
+
+try:
+    basestring
+except NameError:  # python 3
+    basestring = str
 
 # Definition of trackvis header structure.
 # See http://www.trackvis.org/docs/?subsect=fileformat
@@ -134,13 +140,13 @@ def read(fileobj, as_generator=False, points_space=None):
     coordinates, ``x, y, z``, where ``x`` is the floating point voxel coordinate
     along the first image axis, multiplied by the voxel size for that axis.
     '''
-    fileobj = allopen(fileobj, mode='rb')
+    fileobj = BinOpener(fileobj)
     hdr_str = fileobj.read(header_2_dtype.itemsize)
     # try defaulting to version 2 format
     hdr = np.ndarray(shape=(),
                      dtype=header_2_dtype,
                      buffer=hdr_str)
-    if np.asscalar(hdr['id_string'])[:5] != asbytes('TRACK'):
+    if np.asscalar(hdr['id_string'])[:5] != b'TRACK':
         raise HeaderError('Expecting TRACK as first '
                           '5 characters of id_string')
     if hdr['hdr_size'] == 1000:
@@ -210,14 +216,16 @@ def read(fileobj, as_generator=False, points_space=None):
             if points_space == 'voxel':
                 xyz = xyz / zooms
             elif points_space == 'rasmm':
-                xyz = apply_affine(tv2mm, pts)
+                xyz = apply_affine(tv2mm, xyz)
             if n_s:
                 scalars = pts[:,3:]
             yield (xyz, scalars, ps)
             n_streams += 1
             # deliberately misses case where stream_count is 0
             if n_streams == stream_count:
+                fileobj.close_if_mine()
                 raise StopIteration
+        fileobj.close_if_mine()
     streamlines = track_gen()
     if not as_generator:
         streamlines = list(streamlines)
@@ -278,8 +286,8 @@ def write(fileobj, streamlines,  hdr_mapping=None, endianness=None,
 
     Examples
     --------
-    >>> from StringIO import StringIO #23dt : BytesIO
-    >>> file_obj = StringIO() #23dt : BytesIO
+    >>> from io import BytesIO
+    >>> file_obj = BytesIO()
     >>> pts0 = np.random.uniform(size=(10,3))
     >>> pts1 = np.random.uniform(size=(10,3))
     >>> streamlines = ([(pts0, None, None), (pts1, None, None)])
@@ -292,7 +300,7 @@ def write(fileobj, streamlines,  hdr_mapping=None, endianness=None,
     If there are too many streamlines to fit in memory, you can pass an iterable
     thing instead of a list
 
-    >>> file_obj = StringIO() #23dt : BytesIO
+    >>> file_obj = BytesIO()
     >>> def gen():
     ...     yield (pts0, None, None)
     ...     yield (pts0, None, None)
@@ -323,12 +331,12 @@ def write(fileobj, streamlines,  hdr_mapping=None, endianness=None,
     '''
     stream_iter = iter(streamlines)
     try:
-        streams0 = stream_iter.next()
+        streams0 = next(stream_iter)
     except StopIteration: # empty sequence or iterable
         # write header without streams
         hdr = _hdr_from_mapping(None, hdr_mapping, endianness)
-        fileobj = allopen(fileobj, mode='wb')
-        fileobj.write(hdr.tostring())
+        with BinOpener(fileobj, 'wb') as fileobj:
+            fileobj.write(hdr.tostring())
         return
     if endianness is None:
         endianness = endian_codes[streams0[0].dtype.byteorder]
@@ -368,7 +376,7 @@ def write(fileobj, streamlines,  hdr_mapping=None, endianness=None,
         mm2vx = npl.inv(affine)
         mm2tv = np.dot(vx2tv, mm2vx).astype('f4')
     # write header
-    fileobj = allopen(fileobj, mode='wb')
+    fileobj = BinOpener(fileobj, mode='wb')
     fileobj.write(hdr.tostring())
     # track preliminaries
     f4dt = np.dtype(endianness + 'f4')
@@ -407,6 +415,7 @@ def write(fileobj, streamlines,  hdr_mapping=None, endianness=None,
             if props.dtype != f4dt:
                 props = props.astype(f4dt)
             fileobj.write(props.tostring())
+    fileobj.close_if_mine()
 
 
 def _check_hdr_points_space(hdr, points_space):
@@ -496,7 +505,7 @@ def _hdr_from_mapping(hdr=None, mapping=None, endianness=native_code):
     for key, value in mapping.items():
         hdr[key] = value
     # check header values
-    if np.asscalar(hdr['id_string'])[:5] != asbytes('TRACK'):
+    if np.asscalar(hdr['id_string'])[:5] != b'TRACK':
         raise HeaderError('Expecting TRACK as first '
                           '5 characaters of id_string')
     if hdr['version'] not in (1, 2):
@@ -524,17 +533,17 @@ def empty_header(endianness=None, version=2):
     Examples
     --------
     >>> hdr = empty_header()
-    >>> print hdr['version']
+    >>> print(hdr['version'])
     2
-    >>> np.asscalar(hdr['id_string']) #23dt next : bytes
-    'TRACK'
+    >>> np.asscalar(hdr['id_string']) == b'TRACK'
+    True
     >>> endian_codes[hdr['version'].dtype.byteorder] == native_code
     True
     >>> hdr = empty_header(swapped_code)
     >>> endian_codes[hdr['version'].dtype.byteorder] == swapped_code
     True
     >>> hdr = empty_header(version=1)
-    >>> print hdr['version']
+    >>> print(hdr['version'])
     1
 
     Notes
@@ -625,7 +634,7 @@ def aff_from_hdr(trk_hdr, atleast_v2=None):
     # Next we check against the 'voxel_order' field if present and not empty.
     try:
         voxel_order = asstr(np.asscalar(trk_hdr['voxel_order']))
-    except KeyError, ValueError:
+    except (KeyError, ValueError):
         voxel_order = ''
     if voxel_order == '':
         return aff

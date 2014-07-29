@@ -9,7 +9,7 @@
 """ Testing spatialimages
 
 """
-from ..py3k import BytesIO
+from ..externals.six import BytesIO
 
 import numpy as np
 
@@ -22,6 +22,8 @@ from nose.tools import (assert_true, assert_false, assert_equal,
                         assert_not_equal, assert_raises)
 
 from numpy.testing import assert_array_equal, assert_array_almost_equal
+
+from .test_helpers import bytesio_round_trip
 
 
 def test_header_init():
@@ -139,31 +141,45 @@ def test_data_dtype():
 
 def test_affine():
     hdr = Header(np.float64, shape=(1,2,3), zooms=(3.0, 2.0, 1.0))
-    assert_array_almost_equal(hdr.get_default_affine(),
+    assert_array_almost_equal(hdr.get_best_affine(),
                                     [[-3.0,0,0,0],
                                      [0,2,0,-1],
                                      [0,0,1,-1],
                                      [0,0,0,1]])
     hdr.default_x_flip = False
-    assert_array_almost_equal(hdr.get_default_affine(),
+    assert_array_almost_equal(hdr.get_best_affine(),
                                     [[3.0,0,0,0],
                                      [0,2,0,-1],
                                      [0,0,1,-1],
                                      [0,0,0,1]])
     assert_array_equal(hdr.get_base_affine(),
-                             hdr.get_default_affine())
+                       hdr.get_best_affine())
 
 
 def test_read_data():
-    hdr = Header(np.int32, shape=(1,2,3), zooms=(3.0, 2.0, 1.0))
-    fobj = BytesIO()
-    data = np.arange(6).reshape((1,2,3))
-    hdr.data_to_fileobj(data, fobj)
-    assert_equal(fobj.getvalue(),
-                       data.astype(np.int32).tostring(order='F'))
-    fobj.seek(0)
-    data2 = hdr.data_from_fileobj(fobj)
-    assert_array_equal(data, data2)
+    class CHeader(Header):
+        data_layout='C'
+    for klass, order in ((Header, 'F'), (CHeader, 'C')):
+        hdr = klass(np.int32, shape=(1,2,3), zooms=(3.0, 2.0, 1.0))
+        fobj = BytesIO()
+        data = np.arange(6).reshape((1,2,3))
+        hdr.data_to_fileobj(data, fobj)
+        assert_equal(fobj.getvalue(),
+                     data.astype(np.int32).tostring(order=order))
+        # data_to_fileobj accepts kwarg 'rescale', but no effect in this case
+        fobj.seek(0)
+        hdr.data_to_fileobj(data, fobj, rescale=True)
+        assert_equal(fobj.getvalue(),
+                     data.astype(np.int32).tostring(order=order))
+        # data_to_fileobj can be a list
+        fobj.seek(0)
+        hdr.data_to_fileobj(data.tolist(), fobj, rescale=True)
+        assert_equal(fobj.getvalue(),
+                     data.astype(np.int32).tostring(order=order))
+        # Read data back again
+        fobj.seek(0)
+        data2 = hdr.data_from_fileobj(fobj)
+        assert_array_equal(data, data2)
 
 
 class DataLike(object):
@@ -176,11 +192,12 @@ class DataLike(object):
 class TestSpatialImage(TestCase):
     # class for testing images
     image_class = SpatialImage
+    can_save = False
 
     def test_isolation(self):
         # Test image isolated from external changes to header and affine
         img_klass = self.image_class
-        arr = np.arange(3, dtype=np.int16)
+        arr = np.arange(24, dtype=np.int16).reshape((2, 3, 4))
         aff = np.eye(4)
         img = img_klass(arr, aff)
         assert_array_equal(img.get_affine(), aff)
@@ -191,7 +208,7 @@ class TestSpatialImage(TestCase):
         # Pass it back in
         img = img_klass(arr, aff, ihdr)
         # Check modifying header outside does not modify image
-        ihdr.set_zooms((4,))
+        ihdr.set_zooms((4, 5, 6))
         assert_not_equal(img.get_header(), ihdr)
 
     def test_float_affine(self):
@@ -206,20 +223,30 @@ class TestSpatialImage(TestCase):
     def test_images(self):
         # Assumes all possible images support int16
         # See https://github.com/nipy/nibabel/issues/58
-        arr = np.arange(3, dtype=np.int16)
+        arr = np.arange(24, dtype=np.int16).reshape((2, 3, 4))
         img = self.image_class(arr, None)
         assert_array_equal(img.get_data(), arr)
         assert_equal(img.get_affine(), None)
+
+    def test_default_header(self):
+        # Check default header is as expected
+        arr = np.arange(24, dtype=np.int16).reshape((2, 3, 4))
+        img = self.image_class(arr, None)
         hdr = self.image_class.header_class()
         hdr.set_data_shape(arr.shape)
         hdr.set_data_dtype(arr.dtype)
-        assert_equal(img.get_header(), hdr)
+        assert_equal(img.header, hdr)
 
     def test_data_api(self):
         # Test minimal api data object can initialize
         img = self.image_class(DataLike(), None)
         assert_array_equal(img.get_data(), np.arange(3))
         assert_equal(img.shape, (3,))
+
+    def check_dtypes(self, expected, actual):
+        # Some images will want dtypes to be equal including endianness,
+        # others may only require the same type
+        assert_equal(expected, actual)
 
     def test_data_default(self):
         # check that the default dtype comes from the data if the header
@@ -229,10 +256,11 @@ class TestSpatialImage(TestCase):
         data = np.arange(24, dtype=np.int32).reshape((2,3,4))
         affine = np.eye(4)
         img = img_klass(data, affine)
-        assert_equal(data.dtype, img.get_data_dtype())
+        self.check_dtypes(data.dtype, img.get_data_dtype())
         header = hdr_klass()
+        header.set_data_dtype(np.float32)
         img = img_klass(data, affine, header)
-        assert_equal(img.get_data_dtype(), np.dtype(np.float32))
+        self.check_dtypes(np.dtype(np.float32), img.get_data_dtype())
 
     def test_data_shape(self):
         # Check shape correctly read
@@ -242,7 +270,7 @@ class TestSpatialImage(TestCase):
         arr = np.arange(4, dtype=np.int16)
         img = img_klass(arr, np.eye(4))
         assert_equal(img.shape, (4,))
-        img = img_klass(np.zeros((2,3,4)), np.eye(4))
+        img = img_klass(np.zeros((2,3,4), dtype=np.float32), np.eye(4))
         assert_equal(img.shape, (2,3,4))
 
     def test_str(self):
@@ -267,3 +295,32 @@ class TestSpatialImage(TestCase):
         assert_equal(img.get_shape(), (1,))
         img = img_klass(np.zeros((2,3,4), np.int16), np.eye(4))
         assert_equal(img.get_shape(), (2,3,4))
+
+    def test_get_data(self):
+        # Test array image and proxy image interface
+        img_klass = self.image_class
+        in_data_template = np.arange(24, dtype=np.int16).reshape((2, 3, 4))
+        in_data = in_data_template.copy()
+        img = img_klass(in_data, None)
+        assert_true(in_data is img.dataobj)
+        out_data = img.get_data()
+        assert_true(in_data is out_data)
+        # and that uncache has no effect
+        img.uncache()
+        assert_true(in_data is out_data)
+        assert_array_equal(out_data, in_data_template)
+        # If we can save, we can create a proxy image
+        if not self.can_save:
+            return
+        rt_img = bytesio_round_trip(img)
+        assert_false(in_data is rt_img.dataobj)
+        assert_array_equal(rt_img.dataobj, in_data)
+        out_data = rt_img.get_data()
+        assert_array_equal(out_data, in_data)
+        assert_false(rt_img.dataobj is out_data)
+        # cache
+        assert_true(rt_img.get_data() is out_data)
+        out_data[:] = 42
+        rt_img.uncache()
+        assert_false(rt_img.get_data() is out_data)
+        assert_array_equal(rt_img.get_data(), in_data)

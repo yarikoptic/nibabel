@@ -4,6 +4,7 @@ Most routines work round some numpy oddities in floating point precision and
 casting.  Others work round numpy casting to and from python ints
 """
 
+from numbers import Integral
 from platform import processor, machine
 
 import numpy as np
@@ -18,7 +19,7 @@ def float_to_int(arr, int_type, nan2zero=True, infmax=False):
 
     * Rounds numbers to nearest integer
     * Clips values to prevent overflows when casting
-    * Converts NaN to 0 (for `nan2zero`==True
+    * Converts NaN to 0 (for `nan2zero` == True)
 
     Casting floats to integers is delicate because the result is undefined
     and platform specific for float values outside the range of `int_type`.
@@ -428,6 +429,11 @@ def int_to_float(val, flt_type):
     """
     if not flt_type is np.longdouble:
         return flt_type(val)
+    # The following works around a nasty numpy 1.4.1 bug such that:
+    # >>> int(np.uint32(2**32-1)
+    # -1
+    if not isinstance(val, Integral):
+        val = int(str(val))
     faval = np.longdouble(0)
     while val != 0:
         f64 = np.float64(val)
@@ -629,21 +635,55 @@ def best_float():
     case we return float64 on the basis it's the fastest and smallest at the
     highest precision.
 
+    SPARC float128 also proved so slow that we prefer float64.
+
     Returns
     -------
     best_type : numpy type
         floating point type with highest precision
+
+    Notes
+    -----
+    Needs to run without error for module import, because it is called in
+    ``ok_floats`` below, and therefore in setting module global ``OK_FLOATS``.
     """
-    if (type_info(np.longdouble)['nmant'] > type_info(np.float64)['nmant'] and
+    try:
+        long_info = type_info(np.longdouble)
+    except FloatingError:
+        return np.float64
+    if (long_info['nmant'] > type_info(np.float64)['nmant'] and
         machine() != 'sparc64'): # sparc has crazy-slow float128
         return np.longdouble
     return np.float64
 
 
+def longdouble_lte_float64():
+    """ Return True if longdouble appears to have the same precision as float64
+    """
+    return np.longdouble(2**53) == np.longdouble(2**53) + 1
+
+
+# Record longdouble precision at import because it can change on Windows
+_LD_LTE_FLOAT64 = longdouble_lte_float64()
+
+
+def longdouble_precision_improved():
+    """ True if longdouble precision increased since initial import
+
+    This can happen on Windows compiled with MSVC.  It may be because libraries
+    compiled with mingw (longdouble is Intel80) get linked to numpy compiled
+    with MSVC (longdouble is Float64)
+    """
+    return not longdouble_lte_float64() and _LD_LTE_FLOAT64
+
+
 def have_binary128():
     """ True if we have a binary128 IEEE longdouble
     """
-    ti = type_info(np.longdouble)
+    try:
+        ti = type_info(np.longdouble)
+    except FloatingError:
+        return False
     return (ti['nmant'], ti['maxexp']) == (112, 16384)
 
 
@@ -652,13 +692,15 @@ def ok_floats():
 
     Remove longdouble if it has no higher precision than float64
     """
-    floats = sorted(np.sctypes['float'], key=lambda f : type_info(f)['nmant'])
+    # copy float list so we don't change the numpy global
+    floats = np.sctypes['float'][:]
     if best_float() != np.longdouble and np.longdouble in floats:
         floats.remove(np.longdouble)
-    return floats
+    return sorted(floats, key=lambda f : type_info(f)['nmant'])
 
 
 OK_FLOATS = ok_floats()
+
 
 
 def able_int_type(values):

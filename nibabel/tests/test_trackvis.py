@@ -1,11 +1,11 @@
 ''' Testing trackvis module '''
-from __future__ import with_statement
+from __future__ import division, print_function, absolute_import
 
 from functools import partial
 
 import numpy as np
 
-from ..py3k import BytesIO, asbytes
+from ..externals.six import BytesIO
 from .. import trackvis as tv
 from ..orientations import aff2axcodes
 from ..volumeutils import native_code, swapped_code
@@ -27,7 +27,7 @@ def test_write():
     # read it back
     out_f.seek(0)
     streams, hdr = tv.read(out_f)
-    assert_equal(hdr['id_string'], asbytes('TRACKb'))
+    assert_equal(hdr['id_string'], b'TRACKb')
     # check that we can pass none for the header
     out_f.truncate(0); out_f.seek(0)
     tv.write(out_f, [])
@@ -168,11 +168,6 @@ def test_round_trip():
 def test_points_processing():
     # We may need to process points if they are in voxel or mm format
     out_f = BytesIO()
-    ijk0 = np.arange(15).reshape((5,3)) / 2.0
-    ijk1 = ijk0 + 20
-    vx_streams = [(ijk0, None, None), (ijk1, None, None)]
-    vxmm_streams = [(ijk0 * [[2,3,4]], None, None),
-                    (ijk1 * [[2,3,4]], None, None)]
     def _rt(streams, hdr, points_space):
         # run round trip through IO object
         out_f.seek(0)
@@ -181,96 +176,107 @@ def test_points_processing():
         res0 = tv.read(out_f)
         out_f.seek(0)
         return res0, tv.read(out_f, points_space=points_space)
-    # voxmm is the default.  In this case we don't do anything to the points,
-    # and we let the header pass through without further checks
-    (raw_streams, hdr), (proc_streams, _) = _rt(vxmm_streams, {}, None)
-    assert_true(streamlist_equal(raw_streams, proc_streams))
-    assert_true(streamlist_equal(vxmm_streams, proc_streams))
-    (raw_streams, hdr), (proc_streams, _) = _rt(vxmm_streams, {}, 'voxmm')
-    assert_true(streamlist_equal(raw_streams, proc_streams))
-    assert_true(streamlist_equal(vxmm_streams, proc_streams))
-    # with 'voxels' as input, check for not all voxel_size == 0, warn if any
-    # voxel_size == 0
-    for hdr in ( # these cause read / write errors
-                # empty header has 0 voxel sizes
-                {},
-                {'voxel_size': [0,0,0]}, # the default
-                {'voxel_size': [-2,3,4]}, # negative not valid
-               ):
-        # Check error on write
-        out_f.seek(0)
-        assert_raises(tv.HeaderError,
-                      tv.write, out_f, vx_streams, hdr, None, 'voxel')
-        out_f.seek(0)
-        # bypass write error and check read
-        tv.write(out_f, vxmm_streams, hdr, None, points_space = None)
-        out_f.seek(0)
-        assert_raises(tv.HeaderError, tv.read, out_f, False, 'voxel')
-    # There's a warning for any voxel sizes == 0
-    hdr = {'voxel_size': [2, 3, 0]}
-    with ErrorWarnings():
-        assert_raises(UserWarning, _rt, vx_streams, hdr, 'voxel')
-    # This should be OK
-    hdr = {'voxel_size': [2, 3, 4]}
-    (raw_streams, hdr), (proc_streams, _) = _rt(vx_streams, hdr, 'voxel')
-    assert_true(streamlist_equal(vxmm_streams, raw_streams))
-    assert_true(streamlist_equal(vx_streams, proc_streams))
-    # Now we try with rasmm points.  In this case we need valid voxel_size, and
-    # voxel_order, and vox_to_ras.  The voxel_order has to match the vox_to_ras,
-    # and so do the voxel sizes
-    aff = np.diag([2,3,4,1])
-    # In this case the trk -> vx and vx -> mm invert each other
-    rasmm_streams = vxmm_streams
-    for hdr in ( # all these cause read and write errors for rasmm
-        # Empty header has no valid affine
-        {},
-        # Error if ras_to_mm not defined (as in version 1)
-        {'voxel_size': [2, 3, 4], 'voxel_order': 'RAS', 'version':1},
-        # or it's all zero
-        {'voxel_size': [2, 3, 4], 'voxel_order': 'RAS',
-         'vox_to_ras': np.zeros((4,4))},
-        # as it is by default
-        {'voxel_size': [2, 3, 4], 'voxel_order': 'RAS'},
-        # or the voxel_size doesn't match the affine
-        {'voxel_size': [2, 2, 4], 'voxel_order': 'RAS',
-         'vox_to_ras': aff},
-        # or the voxel_order doesn't match the affine
-        {'voxel_size': [2, 3, 4], 'voxel_order': 'LAS',
-         'vox_to_ras': aff},
-        ):
-        # Check error on write
-        out_f.seek(0)
-        assert_raises(tv.HeaderError,
-                      tv.write, out_f, rasmm_streams, hdr, None, 'rasmm')
-        out_f.seek(0)
-        # bypass write error and check read
-        tv.write(out_f, vxmm_streams, hdr, None, points_space = None)
-        out_f.seek(0)
-        assert_raises(tv.HeaderError, tv.read, out_f, False, 'rasmm')
-    # This should be OK
-    hdr = {'voxel_size': [2, 3, 4], 'voxel_order': 'RAS',
-           'vox_to_ras': aff}
-    (raw_streams, hdr), (proc_streams, _) = _rt(rasmm_streams, hdr, 'rasmm')
-    assert_true(streamlist_equal(vxmm_streams, raw_streams))
-    assert_true(streamlist_equal(rasmm_streams, proc_streams))
-    # More complex test to check matrix orientation
-    fancy_affine = np.array([[0., -2, 0, 10],
-                             [3, 0, 0, 20],
-                             [0, 0, 4, 30],
-                             [0, 0, 0, 1]])
-    hdr = {'voxel_size': [3, 2, 4], 'voxel_order': 'ALS',
-           'vox_to_ras': fancy_affine}
-    def f(pts): # from vx to mm
-        pts = pts[:,[1,0,2]] * [[-2,3,4]] # apply zooms / reorder
-        return pts + [[10,20,30]] # apply translations
-    xyz0, xyz1 = f(ijk0), f(ijk1)
-    fancy_rasmm_streams = [(xyz0, None, None), (xyz1, None, None)]
-    fancy_vxmm_streams = [(ijk0 * [[3,2,4]], None, None),
-                          (ijk1 * [[3,2,4]], None, None)]
-    (raw_streams, hdr), (proc_streams, _) = _rt(
-        fancy_rasmm_streams, hdr, 'rasmm')
-    assert_true(streamlist_equal(fancy_vxmm_streams, raw_streams))
-    assert_true(streamlist_equal(fancy_rasmm_streams, proc_streams))
+    n_pts = 5
+    ijk0 = np.arange(n_pts * 3).reshape((n_pts,3)) / 2.0
+    ijk1 = ijk0 + 20
+    # Check with and without some scalars
+    for scalars in ((None, None),
+                    (np.arange(n_pts)[:, None],
+                     np.arange(n_pts)[:, None] + 99)):
+        vx_streams = [(ijk0, scalars[0], None), (ijk1, scalars[1], None)]
+        vxmm_streams = [(ijk0 * [[2,3,4]], scalars[0], None),
+                        (ijk1 * [[2,3,4]], scalars[1], None)]
+        # voxmm is the default.  In this case we don't do anything to the
+        # points, and we let the header pass through without further checks
+        (raw_streams, hdr), (proc_streams, _) = _rt(vxmm_streams, {}, None)
+        assert_true(streamlist_equal(raw_streams, proc_streams))
+        assert_true(streamlist_equal(vxmm_streams, proc_streams))
+        (raw_streams, hdr), (proc_streams, _) = _rt(vxmm_streams, {}, 'voxmm')
+        assert_true(streamlist_equal(raw_streams, proc_streams))
+        assert_true(streamlist_equal(vxmm_streams, proc_streams))
+        # with 'voxels' as input, check for not all voxel_size == 0, warn if any
+        # voxel_size == 0
+        for hdr in ( # these cause read / write errors
+                    # empty header has 0 voxel sizes
+                    {},
+                    {'voxel_size': [0,0,0]}, # the default
+                    {'voxel_size': [-2,3,4]}, # negative not valid
+                ):
+            # Check error on write
+            out_f.seek(0)
+            assert_raises(tv.HeaderError,
+                        tv.write, out_f, vx_streams, hdr, None, 'voxel')
+            out_f.seek(0)
+            # bypass write error and check read
+            tv.write(out_f, vxmm_streams, hdr, None, points_space = None)
+            out_f.seek(0)
+            assert_raises(tv.HeaderError, tv.read, out_f, False, 'voxel')
+        # There's a warning for any voxel sizes == 0
+        hdr = {'voxel_size': [2, 3, 0]}
+        with ErrorWarnings():
+            assert_raises(UserWarning, _rt, vx_streams, hdr, 'voxel')
+        # This should be OK
+        hdr = {'voxel_size': [2, 3, 4]}
+        (raw_streams, hdr), (proc_streams, _) = _rt(vx_streams, hdr, 'voxel')
+        assert_true(streamlist_equal(vxmm_streams, raw_streams))
+        assert_true(streamlist_equal(vx_streams, proc_streams))
+        # Now we try with rasmm points.  In this case we need valid voxel_size,
+        # and voxel_order, and vox_to_ras.  The voxel_order has to match the
+        # vox_to_ras, and so do the voxel sizes
+        aff = np.diag([2,3,4,1])
+        # In this case the trk -> vx and vx -> mm invert each other
+        rasmm_streams = vxmm_streams
+        for hdr in ( # all these cause read and write errors for rasmm
+            # Empty header has no valid affine
+            {},
+            # Error if ras_to_mm not defined (as in version 1)
+            {'voxel_size': [2, 3, 4], 'voxel_order': 'RAS', 'version':1},
+            # or it's all zero
+            {'voxel_size': [2, 3, 4], 'voxel_order': 'RAS',
+            'vox_to_ras': np.zeros((4,4))},
+            # as it is by default
+            {'voxel_size': [2, 3, 4], 'voxel_order': 'RAS'},
+            # or the voxel_size doesn't match the affine
+            {'voxel_size': [2, 2, 4], 'voxel_order': 'RAS',
+            'vox_to_ras': aff},
+            # or the voxel_order doesn't match the affine
+            {'voxel_size': [2, 3, 4], 'voxel_order': 'LAS',
+            'vox_to_ras': aff},
+            ):
+            # Check error on write
+            out_f.seek(0)
+            assert_raises(tv.HeaderError,
+                        tv.write, out_f, rasmm_streams, hdr, None, 'rasmm')
+            out_f.seek(0)
+            # bypass write error and check read
+            tv.write(out_f, vxmm_streams, hdr, None, points_space = None)
+            out_f.seek(0)
+            assert_raises(tv.HeaderError, tv.read, out_f, False, 'rasmm')
+        # This should be OK
+        hdr = {'voxel_size': [2, 3, 4], 'voxel_order': 'RAS',
+            'vox_to_ras': aff}
+        (raw_streams, hdr), (proc_streams, _) = _rt(rasmm_streams, hdr, 'rasmm')
+        assert_true(streamlist_equal(vxmm_streams, raw_streams))
+        assert_true(streamlist_equal(rasmm_streams, proc_streams))
+        # More complex test to check matrix orientation
+        fancy_affine = np.array([[0., -2, 0, 10],
+                                [3, 0, 0, 20],
+                                [0, 0, 4, 30],
+                                [0, 0, 0, 1]])
+        hdr = {'voxel_size': [3, 2, 4], 'voxel_order': 'ALS',
+            'vox_to_ras': fancy_affine}
+        def f(pts): # from vx to mm
+            pts = pts[:,[1,0,2]] * [[-2,3,4]] # apply zooms / reorder
+            return pts + [[10,20,30]] # apply translations
+        xyz0, xyz1 = f(ijk0), f(ijk1)
+        fancy_rasmm_streams = [(xyz0, scalars[0], None),
+                               (xyz1, scalars[1], None)]
+        fancy_vxmm_streams = [(ijk0 * [[3,2,4]], scalars[0], None),
+                              (ijk1 * [[3,2,4]], scalars[1], None)]
+        (raw_streams, hdr), (proc_streams, _) = _rt(
+            fancy_rasmm_streams, hdr, 'rasmm')
+        assert_true(streamlist_equal(fancy_vxmm_streams, raw_streams))
+        assert_true(streamlist_equal(fancy_rasmm_streams, proc_streams))
 
 
 def test__check_hdr_points_space():
@@ -344,7 +350,7 @@ def test_empty_header():
     for endian in '<>':
         for version in (1, 2):
             hdr = tv.empty_header(endian, version)
-            assert_equal(hdr['id_string'], asbytes('TRACK'))
+            assert_equal(hdr['id_string'], b'TRACK')
             assert_equal(hdr['version'], version)
             assert_equal(hdr['hdr_size'], 1000)
             assert_array_equal(
@@ -387,7 +393,7 @@ def test_get_affine():
                        exp_aff)
     # check against voxel order.  This one works
     hdr['voxel_order'] = ''.join(aff2axcodes(exp_aff))
-    assert_equal(hdr['voxel_order'], asbytes('RAS'))
+    assert_equal(hdr['voxel_order'], b'RAS')
     assert_array_equal(old_afh(hdr), exp_aff)
     # This one doesn't
     hdr['voxel_order'] = 'LAS'
@@ -401,13 +407,13 @@ def test_get_affine():
     # only allowed.  This checks that the flipping heuristic works.
     flipped_aff = exp_aff
     unflipped_aff = exp_aff * [1,1,-1,1]
-    for in_aff, o_codes in ((unflipped_aff, 'RAS'),
-                            (flipped_aff, 'RAI')):
+    for in_aff, o_codes in ((unflipped_aff, b'RAS'),
+                            (flipped_aff, b'RAI')):
         hdr = tv.empty_header()
         tv.aff_to_hdr(in_aff, hdr, pos_vox=True, set_order=True)
         # Unset easier option
         hdr['vox_to_ras'] = 0
-        assert_equal(hdr['voxel_order'], asbytes(o_codes))
+        assert_equal(hdr['voxel_order'], o_codes)
         # Check it came back the way we wanted
         assert_array_equal(old_afh(hdr), in_aff)
     # Check that the default case matches atleast_v2=False case
@@ -487,7 +493,7 @@ def test_tv_class():
     # read it back
     out_f.seek(0)
     tvf_back = tv.TrackvisFile.from_file(out_f)
-    assert_equal(tvf_back.header['id_string'], asbytes('TRACKb'))
+    assert_equal(tvf_back.header['id_string'], b'TRACKb')
     # check that we check input values
     out_f.truncate(0); out_f.seek(0)
     assert_raises(tv.HeaderError,

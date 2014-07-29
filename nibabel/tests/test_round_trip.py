@@ -5,7 +5,7 @@ Test arrays with a range of numerical values, integer and floating point.
 
 import numpy as np
 
-from ..py3k import BytesIO
+from ..externals.six import BytesIO
 from .. import Nifti1Image
 from ..spatialimages import HeaderDataError
 from ..arraywriters import ScalingError
@@ -23,8 +23,8 @@ def round_trip(arr, out_dtype):
     img.set_data_dtype(out_dtype)
     img.to_file_map()
     back = Nifti1Image.from_file_map(img.file_map)
-    hdr = back.get_header()
-    return (back.get_data(),) + hdr.get_slope_inter()
+    # Recover array and calculated scaling from array proxy object
+    return back.get_data(), back.dataobj.slope, back.dataobj.inter
 
 
 def check_params(in_arr, in_type, out_type):
@@ -123,6 +123,7 @@ def test_round_trip():
 def check_arr(test_id, V_in, in_type, out_type, scaling_type):
     arr, arr_dash, slope, inter = check_params(V_in, in_type, out_type)
     if arr_dash is None:
+        # Scaling causes a header or writer error
         return
     nzs = arr != 0 # avoid divide by zero error
     if not np.any(nzs):
@@ -137,14 +138,15 @@ def check_arr(test_id, V_in, in_type, out_type, scaling_type):
     rel_err = np.abs(top / arr)
     abs_err = np.abs(top)
     if slope == 1: # integers output, offset only scaling
-        if (set((in_type, out_type)) == set((np.int64, np.uint64)) and
-            type_info(BFT)['nmant'] < 63):
-            # We'll need to go through lower precision floats
-            A = arr.astype(BFT)
+        if set((in_type, out_type)) == set((np.int64, np.uint64)):
+            # Scaling to or from 64 bit ints can go outside range of continuous
+            # integers for float64 and thus lose precision; take this into
+            # account
+            A = arr.astype(float)
             Ai = A - inter
             ulps = [big_bad_ulp(A), big_bad_ulp(Ai)]
             exp_abs_err = np.max(ulps, axis=0)
-        else: # we don't have to go through floats - no error !
+        else: # floats can give full precision - no error!
             exp_abs_err = np.zeros_like(abs_err)
         rel_thresh = 0
     else:
