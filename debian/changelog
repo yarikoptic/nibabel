@@ -1,4 +1,4 @@
-nibabel (1.3.0+git466-g27e4feb-1) neurodebian-devel; urgency=medium
+nibabel (1.3.0+git476-g3ca7b94-1) neurodebian-devel; urgency=medium
 
   * New snapshot from 1.3.0-466-g27e4feb in preparation to new upstream
     release.
@@ -9,7 +9,7 @@ nibabel (1.3.0+git466-g27e4feb-1) neurodebian-devel; urgency=medium
     - drop pysupport in favor of dh*_python
     - add python3-nibabel
 
- -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 28 Jul 2014 20:44:01 -0400
+ -- Yaroslav Halchenko <debian@onerussian.com>  Tue, 05 Aug 2014 14:08:14 -0400
 
 nibabel (1.3.0-2) sid; urgency=medium
 
