@@ -4,7 +4,7 @@ from os.path import join as pjoin
 import getpass
 import time
 
-from nibabel.tmpdirs import InTemporaryDirectory
+from ...tmpdirs import InTemporaryDirectory
 
 from nose.tools import assert_true
 import numpy as np
@@ -54,7 +54,7 @@ def test_geometry():
 
         with open(surf_path, 'rb') as fobj:
             magic = np.fromfile(fobj, ">u1", 3)
-            read_create_stamp = fobj.readline().rstrip('\n')
+            read_create_stamp = fobj.readline().decode().rstrip('\n')
 
     assert_equal(create_stamp, read_create_stamp)
 

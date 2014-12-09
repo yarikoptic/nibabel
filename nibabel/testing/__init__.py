@@ -8,8 +8,10 @@
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
 ''' Utilities for testing '''
 from os.path import dirname, abspath, join as pjoin
+from warnings import catch_warnings
 
 import numpy as np
+from warnings import catch_warnings, simplefilter
 
 # set path to example data
 data_path = abspath(pjoin(dirname(__file__), '..', 'tests', 'data'))
@@ -49,3 +51,37 @@ def assert_allclose_safely(a, b, match_nans=True):
     if b.dtype.kind in 'ui':
         b = b.astype(float)
     assert_true(np.allclose(a, b))
+
+
+class suppress_warnings(catch_warnings):
+    """ Version of ``catch_warnings`` class that suppresses warnings
+    """
+    def __enter__(self):
+        res = super(suppress_warnings, self).__enter__()
+        simplefilter('ignore')
+        return res
+
+
+class catch_warn_reset(catch_warnings):
+    """ Version of ``catch_warnings`` class that resets warning registry
+    """
+    def __init__(self, *args, **kwargs):
+        self.modules = kwargs.pop('modules', [])
+        self._warnreg_copies = {}
+        super(catch_warn_reset, self).__init__(*args, **kwargs)
+
+    def __enter__(self):
+        for mod in self.modules:
+            if hasattr(mod, '__warningregistry__'):
+                mod_reg = mod.__warningregistry__
+                self._warnreg_copies[mod] = mod_reg.copy()
+                mod_reg.clear()
+        return super(catch_warn_reset, self).__enter__()
+
+    def __exit__(self, *exc_info):
+        super(catch_warn_reset, self).__exit__(*exc_info)
+        for mod in self.modules:
+            if hasattr(mod, '__warningregistry__'):
+                mod.__warningregistry__.clear()
+            if mod in self._warnreg_copies:
+                mod.__warningregistry__.update(self._warnreg_copies[mod])
