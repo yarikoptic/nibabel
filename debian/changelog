@@ -2,6 +2,8 @@ nibabel (2.0.0-1) experimental; urgency=medium
 
   * New upstream release with lots of cool new features, which has minor
     API breakage
+  * debian/watch
+    - fixed up for github
 
  -- Yaroslav Halchenko <debian@onerussian.com>  Tue, 09 Dec 2014 18:42:38 -0500
 
