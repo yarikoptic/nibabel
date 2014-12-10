@@ -7,7 +7,7 @@ Build-Depends: debhelper (>= 7.2.18),
                python-all (>= 2.5),  python-numpy (>= 1.2),  python-scipy,  python-nose,  python-six, python-fuse,
                python3-all,          python3-numpy (>= 1.2), python3-scipy, python3-nose, python3-six,
                help2man, python-sphinx, python-matplotlib, libjs-mathjax,
-Standards-Version: 3.9.5
+Standards-Version: 3.9.6
 Homepage: http://nipy.sourceforge.net/nibabel
 Vcs-Browser: http://git.debian.org/?p=pkg-exppsy/pynifti.git
 Vcs-Git: git://git.debian.org/git/pkg-exppsy/pynifti.git -b dist/debian/proper
