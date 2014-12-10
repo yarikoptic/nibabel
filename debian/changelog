@@ -4,6 +4,10 @@ nibabel (2.0.0-1) experimental; urgency=medium
     API breakage
   * debian/watch
     - fixed up for github
+  * debian/control
+    - build-depend and depend for -doc package on mathjax.  There is nothing
+      else we could do to make sphinx generate docs to use system-wide avail
+      mathjax
 
  -- Yaroslav Halchenko <debian@onerussian.com>  Tue, 09 Dec 2014 18:42:38 -0500
 

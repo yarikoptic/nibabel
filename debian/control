@@ -6,7 +6,7 @@ Uploaders: Michael Hanke <michael.hanke@gmail.com>, Yaroslav Halchenko <debian@o
 Build-Depends: debhelper (>= 7.2.18),
                python-all (>= 2.5),  python-numpy (>= 1.2),  python-scipy,  python-nose,  python-six, python-fuse,
                python3-all,          python3-numpy (>= 1.2), python3-scipy, python3-nose, python3-six,
-               help2man, python-sphinx, python-matplotlib,
+               help2man, python-sphinx, python-matplotlib, libjs-mathjax,
 Standards-Version: 3.9.5
 Homepage: http://nipy.sourceforge.net/nibabel
 Vcs-Browser: http://git.debian.org/?p=pkg-exppsy/pynifti.git
@@ -47,7 +47,7 @@ Description: Python3 bindings to various neuroimaging data formats
 Package: python-nibabel-doc
 Section: doc
 Architecture: all
-Depends: ${misc:Depends}, libjs-jquery
+Depends: ${misc:Depends}, libjs-jquery, libjs-mathjax
 Description: documentation for NiBabel
  NiBabel provides read and write access to some common medical and
  neuroimaging file formats, including: ANALYZE (plain, SPM99, SPM2), GIFTI,
