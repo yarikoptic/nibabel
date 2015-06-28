@@ -226,6 +226,9 @@ def read_annot(filepath, orig_ids=False):
                 ctab[i, 4] = (ctab[i, 0] + ctab[i, 1] * (2 ** 8) +
                               ctab[i, 2] * (2 ** 16))
         ctab[:, 3] = 255
+
+    labels = labels.astype(np.int)
+
     if not orig_ids:
         ord = np.argsort(ctab[:, -1])
         mask = labels != 0
@@ -238,7 +241,7 @@ def write_annot(filepath, labels, ctab, names):
     """Write out a Freesurfer annotation file.
 
     See:
-    http://ftp.nmr.mgh.harvard.edu/fswiki/LabelsClutsAnnotationFiles#Annotation
+    https://surfer.nmr.mgh.harvard.edu/fswiki/LabelsClutsAnnotationFiles#Annotation
 
     Parameters
     ----------
@@ -270,9 +273,9 @@ def write_annot(filepath, labels, ctab, names):
         clut_labels[np.where(labels == -1)] = 0
 
         # vno, label
-        data = np.vstack((np.array(range(vnum)).astype(dt),
-                          clut_labels.astype(dt))).T
-        data.byteswap().tofile(fobj)
+        data = np.vstack((np.array(range(vnum)),
+                          clut_labels)).T.astype(dt)
+        data.tofile(fobj)
 
         # tag
         write(1)

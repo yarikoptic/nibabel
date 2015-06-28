@@ -124,7 +124,7 @@ def quat2mat(q):
     References
     ----------
     Algorithm from
-    http://en.wikipedia.org/wiki/Rotation_matrix#Quaternion
+    https://en.wikipedia.org/wiki/Rotation_matrix#Quaternion
 
     Examples
     --------
@@ -180,7 +180,7 @@ def mat2quat(M):
 
     References
     ----------
-    * http://en.wikipedia.org/wiki/Rotation_matrix#Quaternion
+    * https://en.wikipedia.org/wiki/Rotation_matrix#Quaternion
     * Bar-Itzhack, Itzhack Y. (2000), "New method for extracting the
       quaternion from a rotation matrix", AIAA Journal of Guidance,
       Control and Dynamics 23(6):1085-1087 (Engineering Note), ISSN
@@ -233,7 +233,7 @@ def mult(q1, q2):
 
     Notes
     -----
-    See : http://en.wikipedia.org/wiki/Quaternions#Hamilton_product
+    See : https://en.wikipedia.org/wiki/Quaternions#Hamilton_product
     '''
     w1, x1, y1, z1 = q1
     w2, x2, y2, z2 = q2
@@ -319,7 +319,7 @@ def rotate_vector(v, q):
 
     Notes
     -----
-    See: http://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation#Describing_rotations_with_quaternions
+    See: https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation#Describing_rotations_with_quaternions
 
     '''
     varr = np.zeros((4,))
@@ -330,8 +330,8 @@ def rotate_vector(v, q):
 def nearly_equivalent(q1, q2, rtol=1e-5, atol=1e-8):
     ''' Returns True if `q1` and `q2` give near equivalent transforms
 
-    q1 may be nearly numerically equal to q2, or nearly equal to q2 * -1
-    (becuase a quaternion multiplied by -1 gives the same transform).
+    `q1` may be nearly numerically equal to `q2`, or nearly equal to `q2` * -1
+    (because a quaternion multiplied by -1 gives the same transform).
 
     Parameters
     ----------
@@ -418,11 +418,11 @@ def angle_axis2mat(theta, vector, is_normalized=False):
     Returns
     -------
     mat : array shape (3,3)
-       rotation matrix specified rotation
+       rotation matrix for specified rotation
 
     Notes
     -----
-    From: http://en.wikipedia.org/wiki/Rotation_matrix#Axis_and_angle
+    From: https://en.wikipedia.org/wiki/Rotation_matrix#Axis_and_angle
     '''
     x, y, z = vector
     if not is_normalized:
