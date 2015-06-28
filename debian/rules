@@ -22,7 +22,7 @@ override_dh_auto_build:
 	# also doc source files only consume space
 	-rm -r build/html/_sources
 
-override_dh_auto_install: ${PYVERS:%=python-install%} ${PY3VERS:%=python-install%}
+override_dh_auto_install: ${PY3VERS:%=python-install%} ${PYVERS:%=python-install%} 
 python-install%:
 	python$* setup.py install --install-layout=deb --root=$(CURDIR)/debian/tmp
 

@@ -1,6 +1,9 @@
 nibabel (2.0.1-1) unstable; urgency=medium
 
   * Fresh upstream release
+  * debian/rules
+    - First install for python3 and then for python2 to get correct
+      shebang in nib-ls (Closes: #784697)
 
  -- Yaroslav Halchenko <debian@onerussian.com>  Sun, 28 Jun 2015 01:06:52 -0400
 
