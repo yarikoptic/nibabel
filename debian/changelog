@@ -1,3 +1,12 @@
+nibabel (2.0.1-3) unstable; urgency=medium
+
+  * debian/patches/changeset_ea65e90a97fc8c9929b6a93d6c5657111489573b.diff
+    - cherry-picked from upstream to resolve issues with Python 3.5 doctest
+      machinery which lead to FTBFS whenever optional pydicom wasn't avail
+      (Closes: #802408)
+
+ -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 02 Nov 2015 11:08:23 -0500
+
 nibabel (2.0.1-2) unstable; urgency=medium
 
   * Remove installed scripts before running install again.  Should
