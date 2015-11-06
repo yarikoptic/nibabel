@@ -11,10 +11,11 @@ from .. import (Spm99AnalyzeImage, Spm2AnalyzeImage,
                 Nifti1Pair, Nifti1Image,
                 Nifti2Pair, Nifti2Image)
 from ..loadsave import load, read_img_data
-from ..spatialimages import ImageFileError
+from ..filebasedimages import ImageFileError
 from ..tmpdirs import InTemporaryDirectory, TemporaryDirectory
 
-from .test_spm99analyze import have_scipy
+from ..optpkg import optional_package
+_, have_scipy, _ = optional_package('scipy')
 
 from numpy.testing import (assert_almost_equal,
                            assert_array_equal)
