@@ -1,3 +1,9 @@
+nibabel (2.0.2-1) unstable; urgency=medium
+
+  * Fresh upstream bugfix release
+
+ -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 23 Nov 2015 19:17:48 -0500
+
 nibabel (2.0.1-3) unstable; urgency=medium
 
   * debian/patches
