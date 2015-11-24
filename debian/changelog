@@ -1,6 +1,8 @@
 nibabel (2.0.2-1) unstable; urgency=medium
 
   * Fresh upstream bugfix release
+  * debian/tests - provided ADT tests based on RFed to be used without
+    modifications runner from patsy
 
  -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 23 Nov 2015 19:17:48 -0500
 

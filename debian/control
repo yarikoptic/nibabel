@@ -13,6 +13,7 @@ Vcs-Browser: http://git.debian.org/?p=pkg-exppsy/pynifti.git
 Vcs-Git: git://git.debian.org/git/pkg-exppsy/pynifti.git -b dist/debian/proper
 X-Python-Version: >= 2.5
 X-Python3-Version: >= 3.2
+XS-Testsuite: autopkgtest
 
 Package: python-nibabel
 Architecture: all

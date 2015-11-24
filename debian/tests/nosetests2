@@ -1,0 +1,33 @@
+#!/bin/bash
+#
+# ADT test executioner for python-* packages.
+# Should be usable with any module which uses nosetests and packaged
+# as python-MODULENAME.  To use for Python3, just symlink as nosetests3
+#
+# Version: 1
+#
+set -efu
+
+test_exec="$0"
+test_name=$(basename "$test_exec")
+test_path=$(readlink -f $0 | xargs dirname)
+
+# which tester to use is defined by the name
+tester=${test_name%%[0-9]}
+# Figure out for which version of Python this test runner was intended
+py_series=$(echo $test_exec | sed -e 's,.*\([0-9]\)$,\1,g')
+# Construct optional PY suffix which is empty for good old python2
+[ $py_series = '2' ] && PY='' || PY=$py_series
+
+# Figure out what is the name of the module we are testing
+py_module=$(sed -ne '/^Package: python/s,.*python-\(.*\),\1,gp' $test_path/../control \
+            | grep -v -e '-\(doc\|dbg\|lib\)' | head -n 1)
+
+pys="$(eval py${PY}versions -rv 2>/dev/null)"
+
+cd "$ADTTMP"
+
+for py in $pys; do
+	echo "=== python$py ==="
+    python$py /usr/bin/nosetests$PY ${TESTER_ARGS:-} $py_module  2>&1
+done

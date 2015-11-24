@@ -1,0 +1,5 @@
+Tests: nosetests2
+Depends: python-all,  python-nose,  python-numpy,  python-scipy,  python-six,  python-nibabel
+
+Tests: nosetests3
+Depends: python3-all, python3-nose, python3-numpy, python3-scipy, python3-six, python-nibabel
