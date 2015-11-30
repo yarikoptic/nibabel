@@ -4,7 +4,7 @@
 # Should be usable with any module which uses nosetests and packaged
 # as python-MODULENAME.  To use for Python3, just symlink as nosetests3
 #
-# Version: 1
+# Version: 1.1
 #
 set -efu
 
@@ -29,5 +29,5 @@ cd "$ADTTMP"
 
 for py in $pys; do
 	echo "=== python$py ==="
-    python$py /usr/bin/nosetests$PY ${TESTER_ARGS:-} $py_module  2>&1
+    python$py /usr/bin/$tester$PY ${TESTER_ARGS:-} $py_module  2>&1
 done
