@@ -19,9 +19,11 @@ import numpy as np
 import nibabel as nib
 
 from math import ceil
+from collections import defaultdict
 from optparse import OptionParser, Option
 from io import StringIO
 from nibabel.py3k import asunicode
+from nibabel.externals.six.moves import xrange
 
 __author__ = 'Yaroslav Halchenko'
 __copyright__ = 'Copyright (c) 2011-2016 Yaroslav Halchenko ' \
@@ -231,15 +233,35 @@ def proc_file(f, opts):
             d = vol.get_data()
             if not opts.stats_zeros:
                 d = d[np.nonzero(d)]
+            else:
+                # at least flatten it -- functionality below doesn't
+                # depend on the original shape, so let's use a flat view
+                d = d.reshape(-1)
             if opts.stats:
                 # just # of elements
                 row += ["@l[%d]" % np.prod(d.shape)]
                 # stats
                 row += [len(d) and '@l[%.2g, %.2g]' % (np.min(d), np.max(d)) or '-']
             if opts.counts:
-                items, inv = np.unique(d, return_inverse=True)
-                freq = np.bincount(inv)
-                row += ["@l" + " ".join("%g:%d" % (i, f) for i, f in zip(items, freq))]
+                maxunique = 1000  # constant
+                # Since d might be quite large and we don't want to exhaust memory and
+                # thrush, let's do in manageable batches
+                batchsize = 100000
+                counts = defaultdict(int)  # dict is the simplest structure for us here
+                for ibatch in xrange(int(ceil(len(d) / float(batchsize)))):
+                    d_ = d[ibatch * batchsize: (ibatch + 1) * batchsize]
+                    items_, inv_ = np.unique(d_, return_inverse=True)
+                    freq_ = np.bincount(inv_)
+                    # join into the existing pool
+                    for i, f in zip(items_, freq_):
+                        counts[i] += f
+                    if len(counts) > maxunique:
+                        break
+                row += [
+                    "@l" +
+                    " ".join("%g:%d" % (i, counts[i]) for i in sorted(counts)) +
+                    " !processed only up to %d unique values!" % maxunique if len(counts) > maxunique else ''
+                    ]
         except IOError as e:
             verbose(2, "Failed to obtain stats/counts -- %s" % str(e))
             row += ['error']

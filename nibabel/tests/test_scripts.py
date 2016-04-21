@@ -73,9 +73,10 @@ def test_nib_ls():
     # both stats and counts
     yield check_nib_ls_example4d, \
         ['-c', '-s'], "", " \[229725\] \[2, 1.2e\+03\] 2:3 3:2 4:1 5:1.*"
-    # and must not error out if we allow for zeros
+    # and must not error out if we allow for zeros -- should truncate actually
     yield check_nib_ls_example4d, \
-        ['-c', '-s', '-z'], "", " \[589824\] \[0, 1.2e\+03\] 0:360099 2:3 3:2 4:1 5:1.*"
+        ['-c', '-s', '-z'], "", " \[589824\] \[0, 1.2e\+03\] 0:192211 2:3 " \
+        "3:2 4:1 5:1.*!processed only up to 1000 unique values!"
 
 
 @script_test
