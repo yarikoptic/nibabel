@@ -1,3 +1,9 @@
+nibabel (2.0.2+git634-g82a261c-1) experimental; urgency=medium
+
+  * Pre-release snapshot
+
+ -- Yaroslav Halchenko <debian@onerussian.com>  Thu, 28 Jul 2016 22:25:06 -0400
+
 nibabel (2.0.2-2) unstable; urgency=medium
 
   * debian/tests/control: needs python3-nibabel for testing itself
