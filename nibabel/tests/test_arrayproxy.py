@@ -23,11 +23,13 @@ from ..nifti1 import Nifti1Header
 from numpy.testing import assert_array_equal, assert_array_almost_equal
 from nose.tools import (assert_true, assert_false, assert_equal,
                         assert_not_equal, assert_raises)
+from nibabel.testing import VIRAL_MEMMAP
 
 from .test_fileslice import slicer_samples
 
 
 class FunkyHeader(object):
+
     def __init__(self, shape):
         self.shape = shape
 
@@ -55,7 +57,7 @@ class CArrayProxy(ArrayProxy):
 
 def test_init():
     bio = BytesIO()
-    shape = [2,3,4]
+    shape = [2, 3, 4]
     dtype = np.int32
     arr = np.arange(24, dtype=dtype).reshape(shape)
     bio.seek(16)
@@ -90,7 +92,7 @@ def write_raw_data(arr, hdr, fileobj):
 
 def test_nifti1_init():
     bio = BytesIO()
-    shape = (2,3,4)
+    shape = (2, 3, 4)
     hdr = Nifti1Header()
     arr = np.arange(24, dtype=np.int16).reshape(shape)
     write_raw_data(arr, hdr, bio)
@@ -150,6 +152,7 @@ def test_is_proxy():
     assert_false(is_proxy(bio))
     assert_false(is_proxy(hdr))
     assert_false(is_proxy(np.zeros((2, 3, 4))))
+
     class NP(object):
         is_proxy = False
     assert_false(is_proxy(NP()))
@@ -158,6 +161,7 @@ def test_is_proxy():
 def test_get_unscaled():
     # Test fetch of raw array
     class FunkyHeader2(FunkyHeader):
+
         def get_slope_inter(self):
             return 2.1, 3.14
     shape = (2, 3, 4)
@@ -179,36 +183,67 @@ def test_mmap():
     check_mmap(hdr, hdr.get_data_offset(), ArrayProxy)
 
 
-def check_mmap(hdr, offset, proxy_class, check_mode=True):
+def check_mmap(hdr, offset, proxy_class,
+               has_scaling=False,
+               unscaled_is_view=True):
+    """ Assert that array proxies return memory maps as expected
+
+    Parameters
+    ----------
+    hdr : object
+        Image header instance
+    offset : int
+        Offset in bytes of image data in file (that we will write)
+    proxy_class : class
+        Class of image array proxy to test
+    has_scaling : {False, True}
+        True if the `hdr` says to apply scaling to the output data, False
+        otherwise.
+    unscaled_is_view : {True, False}
+        True if getting the unscaled data returns a view of the array.  If
+        False, then type of returned array will depend on whether numpy has the
+        old viral (< 1.12) memmap behavior (returns memmap) or the new behavior
+        (returns ndarray).  See: https://github.com/numpy/numpy/pull/7406
+    """
     shape = hdr.get_data_shape()
     arr = np.arange(np.prod(shape), dtype=hdr.get_data_dtype()).reshape(shape)
     fname = 'test.bin'
+    # Whether unscaled array memory backed by memory map (regardless of what
+    # numpy says).
+    unscaled_really_mmap = unscaled_is_view
+    # Whether scaled array memory backed by memory map (regardless of what
+    # numpy says).
+    scaled_really_mmap = unscaled_really_mmap and not has_scaling
     with InTemporaryDirectory():
         with open(fname, 'wb') as fobj:
             fobj.write(b' ' * offset)
             fobj.write(arr.tostring(order='F'))
         for mmap, expected_mode in (
-            # mmap value, expected memmap mode
-            # mmap=None -> no mmap value
-            # expected mode=None -> no memmap returned
-            (None, 'c'),
-            (True, 'c'),
-            ('c', 'c'),
-            ('r', 'r'),
-            (False, None)):
+                # mmap value, expected memmap mode
+                # mmap=None -> no mmap value
+                # expected mode=None -> no memmap returned
+                (None, 'c'),
+                (True, 'c'),
+                ('c', 'c'),
+                ('r', 'r'),
+                (False, None)):
             kwargs = {}
             if mmap is not None:
                 kwargs['mmap'] = mmap
             prox = proxy_class(fname, hdr, **kwargs)
             unscaled = prox.get_unscaled()
             back_data = np.asanyarray(prox)
+            unscaled_is_mmap = isinstance(unscaled, np.memmap)
+            back_is_mmap =  isinstance(back_data, np.memmap)
             if expected_mode is None:
-                assert_false(isinstance(unscaled, np.memmap))
-                assert_false(isinstance(back_data, np.memmap))
+                assert_false(unscaled_is_mmap)
+                assert_false(back_is_mmap)
             else:
-                assert_true(isinstance(unscaled, np.memmap))
-                assert_true(isinstance(back_data, np.memmap))
-                if check_mode:
+                assert_equal(unscaled_is_mmap,
+                             VIRAL_MEMMAP or unscaled_really_mmap)
+                assert_equal(back_is_mmap,
+                             VIRAL_MEMMAP or scaled_really_mmap)
+                if scaled_really_mmap:
                     assert_equal(back_data.mode, expected_mode)
             del prox, back_data
             # Check that mmap is keyword-only
