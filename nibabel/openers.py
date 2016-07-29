@@ -16,7 +16,7 @@ from os.path import splitext
 
 
 # The largest memory chunk that gzip can use for reads
-GZIP_MAX_READ_CHUNK = 100 * 1024 * 1024 # 100Mb
+GZIP_MAX_READ_CHUNK = 100 * 1024 * 1024  # 100Mb
 
 
 class BufferedGzipFile(gzip.GzipFile):
@@ -26,14 +26,15 @@ class BufferedGzipFile(gzip.GzipFile):
     in Python 3.5.0.
 
     This works around a known issue in Python 3.5.
-    See https://bugs.python.org/issue25626"""
+    See https://bugs.python.org/issue25626
+    """
 
     # This helps avoid defining readinto in Python 2.6,
     #   where it is undefined on gzip.GzipFile.
     # It also helps limit the exposure to this code.
     if sys.version_info[:3] == (3, 5, 0):
         def __init__(self, fileish, mode='rb', compresslevel=9,
-                     buffer_size=2**32-1):
+                     buffer_size=2**32 - 1):
             super(BufferedGzipFile, self).__init__(fileish, mode=mode,
                                                    compresslevel=compresslevel)
             self.buffer_size = buffer_size
@@ -74,7 +75,8 @@ def _gzip_open(fileish, *args, **kwargs):
 class Opener(object):
     """ Class to accept, maybe open, and context-manage file-likes / filenames
 
-    Provides context manager to close files that the constructor opened for you.
+    Provides context manager to close files that the constructor opened for
+    you.
 
     Parameters
     ----------
@@ -113,7 +115,7 @@ class Opener(object):
         n_args = len(args)
         full_kwargs.update(dict(zip(arg_names[:n_args], args)))
         # Set default mode
-        if not 'mode' in full_kwargs:
+        if 'mode' not in full_kwargs:
             kwargs['mode'] = 'rb'
         if 'compresslevel' in arg_names and 'compresslevel' not in kwargs:
             kwargs['compresslevel'] = self.default_compresslevel
@@ -191,3 +193,25 @@ class Opener(object):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close_if_mine()
+
+
+class ImageOpener(Opener):
+    """ Opener-type class to collect extra compressed extensions
+
+    A trivial sub-class of opener to which image classes can add extra
+    extensions with custom openers, such as compressed openers.
+
+    To add an extension, add a line to the class definition (not __init__):
+
+        ImageOpener.compress_ext_map[ext] = func_def
+
+    ``ext`` is a file extension beginning with '.' and should be included in
+    the image class's ``valid_exts`` tuple.
+
+    ``func_def`` is a `(function, (args,))` tuple, where `function accepts a
+    filename as the first parameter, and `args` defines the other arguments
+    that `function` accepts. These arguments must be any (unordered) subset of
+    `mode`, `compresslevel`, and `buffering`.
+    """
+    # Add new extensions to this dictionary
+    compress_ext_map = Opener.compress_ext_map.copy()

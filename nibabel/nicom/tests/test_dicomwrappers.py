@@ -9,19 +9,7 @@ from copy import copy
 
 import numpy as np
 
-have_dicom = True
-try:
-    import dicom as pydicom
-    read_file = pydicom.read_file
-except ImportError:
-    try:
-        import pydicom
-    except ImportError:
-        have_dicom = False
-    else:
-        from pydicom.dicomio import read_file
-dicom_test = np.testing.dec.skipif(not have_dicom,
-                                   'could not import pydicom')
+from nibabel.pydicom_compat import have_dicom, pydicom, read_file, dicom_test
 
 from .. import dicomwrappers as didw
 from .. import dicomreaders as didr
@@ -62,6 +50,7 @@ EXPECTED_AFFINE = np.array(  # do this for philips?
 EXPECTED_PARAMS = [992.05050247, (0.00507649,
                                   0.99997450,
                                   -0.005023611)]
+
 
 @dicom_test
 def test_wrappers():
@@ -124,6 +113,7 @@ def test_get_from_wrapper():
     # Check get defers to dcm_data get
 
     class FakeData2(object):
+
         def get(self, key, default):
             return 1
     d = FakeData2()
@@ -194,9 +184,9 @@ def test_wrapper_args_kwds():
 def test_dwi_params():
     dw = didw.wrapper_from_data(DATA)
     b_matrix = dw.b_matrix
-    assert_equal(b_matrix.shape, (3,3))
+    assert_equal(b_matrix.shape, (3, 3))
     q = dw.q_vector
-    b = np.sqrt(np.sum(q * q)) # vector norm
+    b = np.sqrt(np.sum(q * q))  # vector norm
     g = q / b
     assert_array_almost_equal(b, EXPECTED_PARAMS[0])
     assert_array_almost_equal(g, EXPECTED_PARAMS[1])
@@ -335,19 +325,19 @@ def test_rotation_matrix():
 
 @dicom_test
 def test_use_csa_sign():
-    #Test that we get the same slice normal, even after swapping the iop
-    #directions
+    # Test that we get the same slice normal, even after swapping the iop
+    # directions
     dw = didw.wrapper_from_file(DATA_FILE_SLC_NORM)
     iop = dw.image_orient_patient
-    dw.image_orient_patient = np.c_[iop[:,1], iop[:,0]]
+    dw.image_orient_patient = np.c_[iop[:, 1], iop[:, 0]]
     dw2 = didw.wrapper_from_file(DATA_FILE_SLC_NORM)
     assert_true(np.allclose(dw.slice_normal, dw2.slice_normal))
 
 
 @dicom_test
 def test_assert_parallel():
-    #Test that we get an AssertionError if the cross product and the CSA
-    #slice normal are not parallel
+    # Test that we get an AssertionError if the cross product and the CSA
+    # slice normal are not parallel
     dw = didw.wrapper_from_file(DATA_FILE_SLC_NORM)
     dw.image_orient_patient = np.c_[[1., 0., 0.], [0., 1., 0.]]
     assert_raises(AssertionError, dw.__getattribute__, 'slice_normal')
@@ -355,8 +345,8 @@ def test_assert_parallel():
 
 @dicom_test
 def test_decimal_rescale():
-    #Test that we don't get back a data array with dtype np.object when our
-    #rescale slope is a decimal
+    # Test that we don't get back a data array with dtype np.object when our
+    # rescale slope is a decimal
     dw = didw.wrapper_from_file(DATA_FILE_DEC_RSCL)
     assert_not_equal(dw.get_data().dtype, np.object)
 
@@ -379,7 +369,8 @@ def fake_frames(seq_name, field_name, value_seq):
         each element in list is obj.<seq_name>[0].<field_name> =
         value_seq[n] for n in range(N)
     """
-    class Fake(object): pass
+    class Fake(object):
+        pass
     frames = []
     for value in value_seq:
         fake_frame = Fake()
@@ -390,14 +381,61 @@ def fake_frames(seq_name, field_name, value_seq):
     return frames
 
 
+def fake_shape_dependents(div_seq, sid_seq=None, sid_dim=None):
+    """ Make a fake dictionary of data that ``image_shape`` is dependent on.
+
+    Parameters
+    ----------
+    div_seq : list of tuples
+        list of values to use for the `DimensionIndexValues` of each frame.
+    sid_seq : list of int
+        list of values to use for the `StackID` of each frame.
+    sid_dim : int
+        the index of the column in 'div_seq' to use as 'sid_seq'
+    """
+    class DimIdxSeqElem(object):
+        def __init__(self, dip=(0, 0), fgp=None):
+            self.DimensionIndexPointer = dip
+            if fgp is not None:
+                self.FunctionalGroupPointer = fgp
+    class FrmContSeqElem(object):
+        def __init__(self, div, sid):
+            self.DimensionIndexValues = div
+            self.StackID = sid
+    class PerFrmFuncGrpSeqElem(object):
+        def __init__(self, div, sid):
+            self.FrameContentSequence = [FrmContSeqElem(div, sid)]
+    # if no StackID values passed in then use the values at index 'sid_dim' in
+    # the value for DimensionIndexValues for it
+    if sid_seq is None:
+        if sid_dim is None:
+            sid_dim = 0
+        sid_seq = [div[sid_dim] for div in div_seq]
+    # create the DimensionIndexSequence
+    num_of_frames = len(div_seq)
+    dim_idx_seq = [DimIdxSeqElem()] * num_of_frames
+    # add an entry for StackID into the DimensionIndexSequence
+    if sid_dim is not None:
+        sid_tag = pydicom.datadict.tag_for_name('StackID')
+        fcs_tag = pydicom.datadict.tag_for_name('FrameContentSequence')
+        dim_idx_seq[sid_dim] = DimIdxSeqElem(sid_tag, fcs_tag)
+    # create the PerFrameFunctionalGroupsSequence
+    frames = [PerFrmFuncGrpSeqElem(div, sid)
+              for div, sid in zip(div_seq, sid_seq)]
+    return {'NumberOfFrames' : num_of_frames,
+            'DimensionIndexSequence' : dim_idx_seq,
+            'PerFrameFunctionalGroupsSequence' : frames}
+
+
 class TestMultiFrameWrapper(TestCase):
     # Test MultiframeWrapper
     MINIMAL_MF = {
         # Minimal contents of dcm_data for this wrapper
-         'PerFrameFunctionalGroupsSequence': [None],
-         'SharedFunctionalGroupsSequence': [None]}
+        'PerFrameFunctionalGroupsSequence': [None],
+        'SharedFunctionalGroupsSequence': [None]}
     WRAPCLASS = didw.MultiframeWrapper
 
+    @dicom_test
     def test_shape(self):
         # Check the shape algorithm
         fake_mf = copy(self.MINIMAL_MF)
@@ -416,45 +454,65 @@ class TestMultiFrameWrapper(TestCase):
         fake_mf['NumberOfFrames'] = 4
         # PerFrameFunctionalGroupsSequence does not match NumberOfFrames
         assert_raises(AssertionError, getattr, dw, 'image_shape')
-        # Make some fake frame data for 3D
-        def my_fake_frames(div_seq):
-            return fake_frames('FrameContentSequence',
-                               'DimensionIndexValues',
-                               div_seq)
+        # check 3D shape when StackID index is 0
         div_seq = ((1, 1), (1, 2), (1, 3), (1, 4))
-        frames = my_fake_frames(div_seq)
-        fake_mf['PerFrameFunctionalGroupsSequence'] = frames
+        fake_mf.update(fake_shape_dependents(div_seq, sid_dim=0))
         assert_equal(MFW(fake_mf).image_shape, (32, 64, 4))
-        # Check stack number matching
+        # Check stack number matching when StackID index is 0
         div_seq = ((1, 1), (1, 2), (1, 3), (2, 4))
-        frames = my_fake_frames(div_seq)
-        fake_mf['PerFrameFunctionalGroupsSequence'] = frames
+        fake_mf.update(fake_shape_dependents(div_seq, sid_dim=0))
         assert_raises(didw.WrapperError, getattr, MFW(fake_mf), 'image_shape')
-        # Make some fake frame data for 4D
-        fake_mf['NumberOfFrames'] = 6
+        # Make some fake frame data for 4D when StackID index is 0
         div_seq = ((1, 1, 1), (1, 2, 1), (1, 1, 2), (1, 2, 2),
                 (1, 1, 3), (1, 2, 3))
-        frames = my_fake_frames(div_seq)
-        fake_mf['PerFrameFunctionalGroupsSequence'] = frames
+        fake_mf.update(fake_shape_dependents(div_seq, sid_dim=0))
         assert_equal(MFW(fake_mf).image_shape, (32, 64, 2, 3))
-        # Check stack number matching for 4D
+        # Check stack number matching for 4D when StackID index is 0
         div_seq = ((1, 1, 1), (1, 2, 1), (1, 1, 2), (1, 2, 2),
                 (1, 1, 3), (2, 2, 3))
-        frames = my_fake_frames(div_seq)
-        fake_mf['PerFrameFunctionalGroupsSequence'] = frames
+        fake_mf.update(fake_shape_dependents(div_seq, sid_dim=0))
         assert_raises(didw.WrapperError, getattr, MFW(fake_mf), 'image_shape')
-        # Check indices can be non-contiguous
+        # Check indices can be non-contiguous when StackID index is 0
         div_seq = ((1, 1, 1), (1, 2, 1), (1, 1, 3), (1, 2, 3))
-        frames = my_fake_frames(div_seq)
-        fake_mf['NumberOfFrames'] = 4
-        fake_mf['PerFrameFunctionalGroupsSequence'] = frames
+        fake_mf.update(fake_shape_dependents(div_seq, sid_dim=0))
         assert_equal(MFW(fake_mf).image_shape, (32, 64, 2, 2))
-        # Check indices can include zero
+        # Check indices can include zero when StackID index is 0
         div_seq = ((1, 1, 0), (1, 2, 0), (1, 1, 3), (1, 2, 3))
-        frames = my_fake_frames(div_seq)
-        fake_mf['NumberOfFrames'] = 4
-        fake_mf['PerFrameFunctionalGroupsSequence'] = frames
+        fake_mf.update(fake_shape_dependents(div_seq, sid_dim=0))
         assert_equal(MFW(fake_mf).image_shape, (32, 64, 2, 2))
+        # check 3D shape when there is no StackID index
+        div_seq = ((1,), (2,), (3,), (4,))
+        sid_seq = (1, 1, 1, 1)
+        fake_mf.update(fake_shape_dependents(div_seq, sid_seq=sid_seq))
+        assert_equal(MFW(fake_mf).image_shape, (32, 64, 4))
+        # check 3D stack number matching when there is no StackID index
+        div_seq = ((1,), (2,), (3,), (4,))
+        sid_seq = (1, 1, 1, 2)
+        fake_mf.update(fake_shape_dependents(div_seq, sid_seq=sid_seq))
+        assert_raises(didw.WrapperError, getattr, MFW(fake_mf), 'image_shape')
+        # check 4D shape when there is no StackID index
+        div_seq = ((1, 1), (2, 1), (1, 2), (2, 2), (1, 3), (2, 3))
+        sid_seq = (1, 1, 1, 1, 1, 1)
+        fake_mf.update(fake_shape_dependents(div_seq, sid_seq=sid_seq))
+        assert_equal(MFW(fake_mf).image_shape, (32, 64, 2, 3))
+        # check 4D stack number matching when there is no StackID index
+        div_seq = ((1, 1), (2, 1), (1, 2), (2, 2), (1, 3), (2, 3))
+        sid_seq = (1, 1, 1, 1, 1, 2)
+        fake_mf.update(fake_shape_dependents(div_seq, sid_seq=sid_seq))
+        assert_raises(didw.WrapperError, getattr, MFW(fake_mf), 'image_shape')
+        # check 3D shape when StackID index is 1
+        div_seq = ((1, 1), (2, 1), (3, 1), (4, 1))
+        fake_mf.update(fake_shape_dependents(div_seq, sid_dim=1))
+        assert_equal(MFW(fake_mf).image_shape, (32, 64, 4))
+        # Check stack number matching when StackID index is 1
+        div_seq = ((1, 1), (2, 1), (3, 2), (4, 1))
+        fake_mf.update(fake_shape_dependents(div_seq, sid_dim=1))
+        assert_raises(didw.WrapperError, getattr, MFW(fake_mf), 'image_shape')
+        # Make some fake frame data for 4D when StackID index is 1
+        div_seq = ((1, 1, 1), (2, 1, 1), (1, 1, 2), (2, 1, 2),
+                (1, 1, 3), (2, 1, 3))
+        fake_mf.update(fake_shape_dependents(div_seq, sid_dim=1))
+        assert_equal(MFW(fake_mf).image_shape, (32, 64, 2, 3))
 
     def test_iop(self):
         # Test Image orient patient for multiframe
@@ -468,13 +526,13 @@ class TestMultiFrameWrapper(TestCase):
                                  [[0, 1, 0, 1, 0, 0]])[0]
         fake_mf['SharedFunctionalGroupsSequence'] = [fake_frame]
         assert_array_equal(MFW(fake_mf).image_orient_patient,
-                        [[0, 1], [1, 0], [0, 0]])
+                           [[0, 1], [1, 0], [0, 0]])
         fake_mf['SharedFunctionalGroupsSequence'] = [None]
         assert_raises(didw.WrapperError,
                       getattr, MFW(fake_mf), 'image_orient_patient')
         fake_mf['PerFrameFunctionalGroupsSequence'] = [fake_frame]
         assert_array_equal(MFW(fake_mf).image_orient_patient,
-                        [[0, 1], [1, 0], [0, 0]])
+                           [[0, 1], [1, 0], [0, 0]])
 
     def test_voxel_sizes(self):
         # Test voxel size calculation
@@ -528,7 +586,7 @@ class TestMultiFrameWrapper(TestCase):
         assert_array_equal(MFW(fake_mf).image_position, [-2, 3, 7])
         fake_mf['SharedFunctionalGroupsSequence'] = [None]
         assert_raises(didw.WrapperError,
-                    getattr, MFW(fake_mf), 'image_position')
+                      getattr, MFW(fake_mf), 'image_position')
         fake_mf['PerFrameFunctionalGroupsSequence'] = [fake_frame]
         assert_array_equal(MFW(fake_mf).image_position, [-2, 3, 7])
         # Check lists of Decimals work
@@ -555,8 +613,9 @@ class TestMultiFrameWrapper(TestCase):
             data = data.byteswap()
         dat_str = data.tostring()
         assert_equal(sha1(dat_str).hexdigest(),
-                    '149323269b0af92baa7508e19ca315240f77fa8c')
+                     '149323269b0af92baa7508e19ca315240f77fa8c')
 
+    @dicom_test
     def test_data_fake(self):
         # Test algorithm for get_data
         fake_mf = copy(self.MINIMAL_MF)
@@ -571,11 +630,8 @@ class TestMultiFrameWrapper(TestCase):
         # Make shape and indices
         fake_mf['Rows'] = 2
         fake_mf['Columns'] = 3
-        fake_mf['NumberOfFrames'] = 4
-        frames = fake_frames('FrameContentSequence',
-                             'DimensionIndexValues',
-                             ((1, 1), (1, 2), (1, 3), (1, 4)))
-        fake_mf['PerFrameFunctionalGroupsSequence'] = frames
+        dim_idxs = ((1, 1), (1, 2), (1, 3), (1, 4))
+        fake_mf.update(fake_shape_dependents(dim_idxs, sid_dim=0))
         assert_equal(MFW(fake_mf).image_shape, (2, 3, 4))
         # Still fails - no data
         assert_raises(didw.WrapperError, dw.get_data)
@@ -591,10 +647,8 @@ class TestMultiFrameWrapper(TestCase):
         fake_mf['RescaleIntercept'] = -1
         assert_array_equal(MFW(fake_mf).get_data(), data * 2.0 - 1)
         # Check slice sorting
-        frames = fake_frames('FrameContentSequence',
-                             'DimensionIndexValues',
-                             ((1, 4), (1, 2), (1, 3), (1, 1)))
-        fake_mf['PerFrameFunctionalGroupsSequence'] = frames
+        dim_idxs = ((1, 4), (1, 2), (1, 3), (1, 1))
+        fake_mf.update(fake_shape_dependents(dim_idxs, sid_dim=0))
         sorted_data = data[..., [3, 1, 2, 0]]
         fake_mf['pixel_array'] = np.rollaxis(sorted_data, 2)
         assert_array_equal(MFW(fake_mf).get_data(), data * 2.0 - 1)
@@ -616,16 +670,12 @@ class TestMultiFrameWrapper(TestCase):
             [1, 2, 1, 2],
             [1, 3, 1, 2],
             [1, 1, 1, 2]]
-        frames = fake_frames('FrameContentSequence',
-                             'DimensionIndexValues',
-                             dim_idxs)
-        fake_mf['PerFrameFunctionalGroupsSequence'] = frames
-        fake_mf['NumberOfFrames'] = len(frames)
+        fake_mf.update(fake_shape_dependents(dim_idxs, sid_dim=0))
         shape = (2, 3, 4, 2, 2)
         data = np.arange(np.prod(shape)).reshape(shape)
         sorted_data = data.reshape(shape[:2] + (-1,), order='F')
-        order = [11,  9, 10,  8,  3,  1,  2,  0,
-                 15, 13, 14, 12,  7,  5,  6,  4]
+        order = [11, 9, 10, 8, 3, 1, 2, 0,
+                 15, 13, 14, 12, 7, 5, 6, 4]
         sorted_data = sorted_data[..., np.argsort(order)]
         fake_mf['pixel_array'] = np.rollaxis(sorted_data, 2)
         assert_array_equal(MFW(fake_mf).get_data(), data * 2.0 - 1)

@@ -1,16 +1,17 @@
 """ This file contains defines parameters for nibabel that we use to fill
 settings in setup.py, the nibabel top-level docstring, and for building the
-docs.  In setup.py in particular, we exec this file, so it cannot import nibabel
+docs.  In setup.py in particular, we exec this file, so it cannot import
+nibabel
 """
 
 # nibabel version information.  An empty _version_extra corresponds to a
 # full release.  '.dev' as a _version_extra string means this is a development
 # version
 _version_major = 2
-_version_minor = 0
-_version_micro = 2
-#_version_extra = 'dev'
-_version_extra = ''
+_version_minor = 1
+_version_micro = 0
+_version_extra = 'dev'
+# _version_extra = ''
 
 # Format expected by setup.py and doc/source/conf.py: string of form "X.Y.Z"
 __version__ = "%s.%s.%s%s" % (_version_major,
@@ -26,7 +27,7 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
                "Programming Language :: Python",
                "Topic :: Scientific/Engineering"]
 
-description  = 'Access a multitude of neuroimaging data formats'
+description = 'Access a multitude of neuroimaging data formats'
 
 # Note: this long_description is the canonical place to edit this text.
 # It also appears in README.rst, but it should get there by running
@@ -68,14 +69,13 @@ Website
 =======
 
 Current documentation on nibabel can always be found at the `NIPY nibabel
-website <https://nipy.github.io/nibabel>`_.
+website <http://nipy.org/nibabel>`_.
 
 Mailing Lists
 =============
 
-Please see the `nipy devel list
-<http://mail.scipy.org/mailman/listinfo/nipy-devel>`_. The nipy devel list is
-fine for user and developer questions about nibabel.
+Please send any questions or suggestions to the `neuroimaging mailing list
+<https://mail.python.org/mailman/listinfo/neuroimaging>`_.
 
 Code
 ====
@@ -89,7 +89,7 @@ You can find our sources and single-click downloads:
 * Downloads of all `available releases`_.
 
 .. _main repository: https://github.com/nipy/nibabel
-.. _Documentation: https://nipy.github.io/nibabel
+.. _Documentation: http://nipy.org/nibabel
 .. _current release: https://pypi.python.org/pypi/nibabel
 .. _current development version: https://github.com/nipy/nibabel/archive/master.zip
 .. _available releases: https://github.com/nipy/nibabel/releases
@@ -103,26 +103,26 @@ nibabel distribution.
 """
 
 # versions for dependencies
-NUMPY_MIN_VERSION='1.5'
-PYDICOM_MIN_VERSION='0.9.7'
+NUMPY_MIN_VERSION = '1.5'
+PYDICOM_MIN_VERSION = '0.9.7'
 
 # Main setup parameters
-NAME                = 'nibabel'
-MAINTAINER          = "Matthew Brett, Michael Hanke and Eric Larson"
-MAINTAINER_EMAIL    = "nipy-devel@neuroimaging.scipy.org"
-DESCRIPTION         = description
-LONG_DESCRIPTION    = long_description
-URL                 = "https://nipy.github.io/nibabel"
-DOWNLOAD_URL        = "https://github.com/nipy/nibabel"
-LICENSE             = "MIT license"
-CLASSIFIERS         = CLASSIFIERS
-AUTHOR              = "Matthew Brett, Michael Hanke, Stephan Gerhard"
-AUTHOR_EMAIL        = "nipy-devel@neuroimaging.scipy.org"
-PLATFORMS           = "OS Independent"
-MAJOR               = _version_major
-MINOR               = _version_minor
-MICRO               = _version_micro
-ISRELEASE           = _version_extra == ''
-VERSION             = __version__
-PROVIDES            = ["nibabel", 'nisext']
-REQUIRES            = ["numpy (>=%s)" % NUMPY_MIN_VERSION]
+NAME = 'nibabel'
+MAINTAINER = "Matthew Brett, Michael Hanke, Eric Larson, Chris Markiewicz"
+MAINTAINER_EMAIL = "neuroimaging@python.org"
+DESCRIPTION = description
+LONG_DESCRIPTION = long_description
+URL = "http://nipy.org/nibabel"
+DOWNLOAD_URL = "https://github.com/nipy/nibabel"
+LICENSE = "MIT license"
+CLASSIFIERS = CLASSIFIERS
+AUTHOR = "Matthew Brett, Michael Hanke, Stephan Gerhard"
+AUTHOR_EMAIL = "neuroimaging@python.org"
+PLATFORMS = "OS Independent"
+MAJOR = _version_major
+MINOR = _version_minor
+MICRO = _version_micro
+ISRELEASE = _version_extra == ''
+VERSION = __version__
+PROVIDES = ["nibabel", 'nisext']
+REQUIRES = ["numpy (>=%s)" % NUMPY_MIN_VERSION]
