@@ -1,11 +1,11 @@
 --- a/doc/source/conf.py
 +++ b/doc/source/conf.py
-@@ -216,7 +216,7 @@ html_show_sourcelink = True
+@@ -226,7 +226,7 @@ html_show_sourcelink = True
  # Output file base name for HTML help builder.
  htmlhelp_basename = 'nibabeldoc'
  
 -mathjax_path = 'https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML'
 +mathjax_path = 'file:///usr/share/javascript/mathjax/MathJax.js'
  
- # -- Options for LaTeX output --------------------------------------------------
+ # -- Options for LaTeX output -------------------------------------------------
  
