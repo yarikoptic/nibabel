@@ -1,6 +1,9 @@
 nibabel (2.0.2+git634-g82a261c-1) experimental; urgency=medium
 
   * Pre-release snapshot
+  * debian/control
+    - python-numpydoc into build-depends
+    - boosted policy to 3.9.8
 
  -- Yaroslav Halchenko <debian@onerussian.com>  Thu, 28 Jul 2016 22:25:06 -0400
 
