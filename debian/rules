@@ -8,6 +8,10 @@ PY3VER = $(shell py3versions -vd)
 
 BINDIR=$(CURDIR)/debian/tmp/usr/bin/
 
+# Setting MPLCONFIGDIR to please matplotlib demanding writable HOME
+# on older systems (e.g. 12.04)
+export MPLCONFIGDIR=$(CURDIR)/build
+
 # one ring to rule them all ...
 %:
 # need to enforce distutils, since we also have a makefile
