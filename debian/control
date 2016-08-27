@@ -7,6 +7,7 @@ Build-Depends: debhelper (>= 7.2.18),
                python-all (>= 2.5),  python-numpy (>= 1.2),  python-scipy,  python-nose,  python-six, python-fuse,
                python3-all,          python3-numpy (>= 1.2), python3-scipy, python3-nose, python3-six,
                help2man, python-sphinx, python-matplotlib, libjs-mathjax,
+               python-mock, python3-mock,
                python-numpydoc
 Standards-Version: 3.9.8
 Homepage: http://nipy.sourceforge.net/nibabel
@@ -19,7 +20,7 @@ XS-Testsuite: autopkgtest
 Package: python-nibabel
 Architecture: all
 Depends: ${misc:Depends}, ${python:Depends}, python-numpy, python-scipy
-Recommends: python-dicom, python-fuse
+Recommends: python-dicom, python-fuse, python-mock
 Suggests: python-nibabel-doc
 Description: Python bindings to various neuroimaging data formats
  NiBabel provides read and write access to some common medical and
@@ -37,7 +38,7 @@ Description: Python bindings to various neuroimaging data formats
 Package: python3-nibabel
 Architecture: all
 Depends: ${misc:Depends}, ${python:Depends}, python3-numpy, python3-scipy
-Suggests: python-nibabel-doc, python3-dicom, python3-fuse
+Suggests: python-nibabel-doc, python3-dicom, python3-fuse, python3-mock
 Description: Python3 bindings to various neuroimaging data formats
  NiBabel provides read and write access to some common medical and
  neuroimaging file formats, including: ANALYZE (plain, SPM99, SPM2), GIFTI,

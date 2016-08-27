@@ -4,11 +4,12 @@ nibabel (2.1.0-1) unstable; urgency=medium
   * debian/control
     - python-numpydoc into build-depends
     - boosted policy to 3.9.8
+    - python{,3}-mock to Build-Depends/Recommends for tests
   * debian/rules
     - use installed scripts (with corrected shebang) while generating manpages
     - export MPLCONFIGDIR to point to writable local directory
 
- -- Yaroslav Halchenko <debian@onerussian.com>  Fri, 26 Aug 2016 20:25:40 -0400
+ -- Yaroslav Halchenko <debian@onerussian.com>  Fri, 26 Aug 2016 22:41:53 -0400
 
 nibabel (2.0.2-2) unstable; urgency=medium
 
