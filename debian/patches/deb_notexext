@@ -16,5 +16,5 @@
 -              'texext.math_dollar',  # has to go before numpydoc
 +              #'texext.math_dollar',  # has to go before numpydoc
                'numpydoc',
-               'only_directives',
-               'plot_directive',
+               'matplotlib.sphinxext.plot_directive',
+               ]
