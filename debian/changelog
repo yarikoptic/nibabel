@@ -1,6 +1,6 @@
-nibabel (2.0.2+git634-g82a261c-1) experimental; urgency=medium
+nibabel (2.1.0-1) unstable; urgency=medium
 
-  * Pre-release snapshot
+  * Fresh upstream release
   * debian/control
     - python-numpydoc into build-depends
     - boosted policy to 3.9.8
@@ -8,7 +8,7 @@ nibabel (2.0.2+git634-g82a261c-1) experimental; urgency=medium
     - use installed scripts (with corrected shebang) while generating manpages
     - export MPLCONFIGDIR to point to writable local directory
 
- -- Yaroslav Halchenko <debian@onerussian.com>  Thu, 28 Jul 2016 22:25:06 -0400
+ -- Yaroslav Halchenko <debian@onerussian.com>  Fri, 26 Aug 2016 20:25:40 -0400
 
 nibabel (2.0.2-2) unstable; urgency=medium
 
