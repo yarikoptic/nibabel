@@ -33,7 +33,7 @@ __license__ = 'MIT'
 verbose_level = 0
 MAX_UNIQUE = 1000  # maximal number of unique values to report for --counts
 
-def _err(msg=None):
+def _errr(msg=None):
     """To return a string to signal "error" in output table"""
     if msg is None:
         msg = 'error'
