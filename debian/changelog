@@ -1,3 +1,9 @@
+nibabel (2.2.0-1) unstable; urgency=medium
+
+  * Fresh upstream release
+
+ -- Yaroslav Halchenko <debian@onerussian.com>  Fri, 13 Oct 2017 20:26:14 -0400
+
 nibabel (2.1.0-1) unstable; urgency=medium
 
   * Fresh upstream release
