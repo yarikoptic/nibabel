@@ -263,7 +263,7 @@ The qform affine
 
 This affine can be calculated from a combination of the voxel sizes (entries 1
 through 4 of the ``pixdim`` field), a sign flip called ``qfac`` stored in
-entry 0 of ``pixdim``, and a `quaternion <wikipedia quaternion>`_ that can be
+entry 0 of ``pixdim``, and a `quaternion <wikipedia quaternion_>`_ that can be
 reconstructed from fields ``quatern_b``, ``quatern_c``, ``quatern_d``.
 
 See the code for the :meth:`get_qform() method
@@ -336,7 +336,7 @@ The output data from a NIfTI image comes from:
 #. Reshaping to the output image shape;
 #. Multiplying the result by the header ``scl_slope`` value, if
    both of ``scl_slope`` and ``scl_inter`` are defined;
-#. Adding the value header ``scl_slope`` value to the result, if both of
+#. Adding the value header ``scl_inter`` value to the result, if both of
    ``scl_slope`` and ``scl_inter`` are defined;
 
 'Defined' means, the value is not NaN (not a number).
@@ -401,7 +401,7 @@ Now we save the image and load it again:
 The data array has the scaling applied:
 
 >>> scaled_img.get_data()
-memmap([[[ 10.,  12.,  14.,  16.],
+...([[[ 10.,  12.,  14.,  16.],
         [ 18.,  20.,  22.,  24.],
         [ 26.,  28.,  30.,  32.]],
 <BLANKLINE>

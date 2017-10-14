@@ -17,7 +17,7 @@ from __future__ import division, print_function
 
 import numpy as np
 
-from nibabel.externals.six.moves import zip
+from six.moves import zip
 from nibabel.tmpdirs import InTemporaryDirectory
 
 from numpy.testing import assert_array_equal
@@ -90,6 +90,7 @@ def bench_load_trk():
         print("Speedup of {:2f}".format(mtime_old / mtime_new))
         for s1, s2 in zip(scalars_new, scalars_old):
             assert_array_equal(s1, s2)
+
 
 if __name__ == '__main__':
     bench_load_trk()

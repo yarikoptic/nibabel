@@ -17,7 +17,7 @@ from distutils.version import StrictVersion
 # We usually use `dev` as `_version_extra` to label this as a development
 # (pre-release) version.
 _version_major = 2
-_version_minor = 1
+_version_minor = 2
 _version_micro = 0
 # _version_extra = 'dev'
 _version_extra = ''
@@ -170,14 +170,25 @@ License
 Nibabel is licensed under the terms of the MIT license. Some code included
 with nibabel is licensed under the BSD license.  Please see the COPYING file
 in the nibabel distribution.
+
+Citing nibabel
+==============
+
+Please see the `available releases`_ for the release of nibabel that you are
+using.  Recent releases have a Zenodo_ `Digital Object Identifier`_ badge at
+the top of the release notes.  Click on the badge for more information.
+
+.. _zenodo: https://zenodo.org
+.. _Digital Object Identifier: https://en.wikipedia.org/wiki/Digital_object_identifier
 """
 
 # versions for dependencies. Check these against:
 # doc/source/installation.rst
 # requirements.txt
 # .travis.yml
-NUMPY_MIN_VERSION = '1.5.1'
+NUMPY_MIN_VERSION = '1.7.1'
 PYDICOM_MIN_VERSION = '0.9.7'
+SIX_MIN_VERSION = '1.3'
 
 # Main setup parameters
 NAME = 'nibabel'

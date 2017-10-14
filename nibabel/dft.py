@@ -22,7 +22,7 @@ import sqlite3
 
 import numpy
 
-from .externals.six import BytesIO
+from io import BytesIO
 
 from .nifti1 import Nifti1Header
 

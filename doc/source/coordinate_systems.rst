@@ -97,11 +97,11 @@ middle voxel in the EPI data array like this:
     :nofigs:
 
     >>> n_i, n_j, n_k = epi_img_data.shape
-    >>> center_i = (n_i - 1) / 2.
-    >>> center_j = (n_j - 1) / 2.
-    >>> center_k = (n_k - 1) / 2.
+    >>> center_i = (n_i - 1) // 2  # // for integer division
+    >>> center_j = (n_j - 1) // 2
+    >>> center_k = (n_k - 1) // 2
     >>> center_i, center_j, center_k
-    (26.0, 30.0, 16.0)
+    (26, 30, 16)
     >>> center_vox_value = epi_img_data[center_i, center_j, center_k]
     >>> center_vox_value
     81.549287796020508
@@ -216,7 +216,7 @@ From scanner to subject
 If the subject is lying in the usual position for a brain scan, face up
 and head first in the scanner, then scanner-left/right is also the left-right
 axis of the subject's head, scanner-floor/ceiling is the anterior-posterior
-axis of the head and scanner-bore is the inferior-posterior axis of the head.
+axis of the head and scanner-bore is the inferior-superior axis of the head.
 
 Sometimes the subject is not lying in the standard position.  For example, the
 subject may be lying with their face pointing to the right (in terms of the
@@ -239,7 +239,7 @@ scanner-floor/ceiling, but reversed so that positive values are towards the
 floor.  This axis goes from left to right in the subject, with positive values
 to the right.  The second (Y) axis would be scanner-left/right
 (anterior-posterior in the subject), and the Z axis would be scanner-bore
-(inferior-posterior).
+(inferior-superior).
 
 Naming reference spaces
 =======================
@@ -386,8 +386,8 @@ A rotation of $\gamma$ radians around the first array axis:
     \end{bmatrix} =
     \begin{bmatrix}
     1 & 0 & 0 \\
-    0 & \cos(\gamma) & 0 & -\sin(\gamma) \\
-    0 & \sin(\gamma) & 0 & \cos(\gamma) \\
+    0 & \cos(\gamma) & -\sin(\gamma) \\
+    0 & \sin(\gamma) & \cos(\gamma) \\
     \end{bmatrix}
     \begin{bmatrix}
     i\\
@@ -515,16 +515,16 @@ We could record the parameters necessary for $f$ as the 3 by 3 matrix, $M$
 and the 3 by 1 vector $(a, b, c)$.
 
 In fact, the 4 by 4 image *affine array* does include exactly this
-information. If $m_{ij}$ is the value in row $i$ column $j$ of matrix $M$,
+information. If $m_{i,j}$ is the value in row $i$ column $j$ of matrix $M$,
 then the image affine matrix $A$ is:
 
 .. math::
 
     A =
     \begin{bmatrix}
-    m_{11} & m_{12} & m_{13} & a \\
-    m_{21} & m_{22} & m_{23} & b \\
-    m_{31} & m_{32} & m_{33} & c \\
+    m_{1,1} & m_{1,2} & m_{1,3} & a \\
+    m_{2,1} & m_{2,2} & m_{2,3} & b \\
+    m_{3,1} & m_{3,2} & m_{3,3} & c \\
     0 & 0 & 0 & 1 \\
     \end{bmatrix}
 
@@ -546,9 +546,9 @@ vectors:
     1\\
     \end{bmatrix} =
     \begin{bmatrix}
-    m_{11} & m_{12} & m_{13} & a \\
-    m_{21} & m_{22} & m_{23} & b \\
-    m_{31} & m_{32} & m_{33} & c \\
+    m_{1,1} & m_{1,2} & m_{1,3} & a \\
+    m_{2,1} & m_{2,2} & m_{2,3} & b \\
+    m_{3,1} & m_{3,2} & m_{3,3} & c \\
     0 & 0 & 0 & 1 \\
     \end{bmatrix}
     \begin{bmatrix}
@@ -607,6 +607,19 @@ matrix.  Put another way:
     z\\
     1\\
     \end{bmatrix} = A
+    \begin{bmatrix}
+    i\\
+    j\\
+    k\\
+    1\\
+    \end{bmatrix}
+
+    A^{-1}\begin{bmatrix}
+    x\\
+    y\\
+    z\\
+    1\\
+    \end{bmatrix} = A^{-1} A
     \begin{bmatrix}
     i\\
     j\\

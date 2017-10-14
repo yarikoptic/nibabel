@@ -129,7 +129,7 @@ from copy import deepcopy
 import re
 from io import StringIO
 from locale import getpreferredencoding
-from nibabel.externals import OrderedDict
+from collections import OrderedDict
 
 from .keywordonly import kw_only_meth
 from .spatialimages import SpatialHeader, SpatialImage
@@ -206,6 +206,14 @@ _hdr_key_dict = {
     'Max. number of gradient orients': ('max_gradient_orient', int),
     # Line below added for par / rec version > 4.1
     'Number of label types   <0=no ASL>': ('nr_label_types', int),
+    # The following are duplicates of the above fields, but with slightly
+    # different abbreviation, spelling, or capatilization.  Both variants have
+    # been observed in the wild in V4.2 PAR files:
+    # https://github.com/nipy/nibabel/issues/505
+    'Series_data_type': ('series_type',),
+    'Patient Position': ('patient_position',),
+    'Repetition time [msec]': ('repetition_time', float, None),
+    'Diffusion echo time [msec]': ('diffusion_echo_time', float),
 }
 
 # Image information as coded into a numpy structured array

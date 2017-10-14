@@ -8,6 +8,8 @@ from io import BytesIO
 from itertools import product
 from functools import partial
 from distutils.version import LooseVersion
+from threading import Thread, Lock
+import time
 
 import numpy as np
 
@@ -689,6 +691,62 @@ def test_read_segments():
     assert_raises(Exception, read_segments, fobj, [(0, 100), (100, 200)], 199)
 
 
+def test_read_segments_lock():
+    # Test read_segment locking with multiple threads
+    fobj = BytesIO()
+    arr = np.array(np.random.randint(0, 256, 1000), dtype=np.uint8)
+    fobj.write(arr.tostring())
+
+    # Encourage the interpreter to switch threads between a seek/read pair
+    def yielding_read(*args, **kwargs):
+        time.sleep(0.001)
+        return fobj._real_read(*args, **kwargs)
+
+    fobj._real_read = fobj.read
+    fobj.read = yielding_read
+
+    # Generate some random array segments to read from the file
+    def random_segments(nsegs):
+        segs = []
+        nbytes = 0
+
+        for i in range(nsegs):
+            seglo = np.random.randint(0, 998)
+            seghi = np.random.randint(seglo + 1, 1000)
+            seglen = seghi - seglo
+            nbytes += seglen
+            segs.append([seglo, seglen])
+
+        return segs, nbytes
+
+    # Get the data that should be returned for the given segments
+    def get_expected(segs):
+        segs = [arr[off:off + length] for off, length in segs]
+        return np.concatenate(segs)
+
+    # Read from the file, check the result. We do this task simultaneously in
+    # many threads. Each thread that passes adds 1 to numpassed[0]
+    numpassed = [0]
+    lock = Lock()
+
+    def runtest():
+        seg, nbytes = random_segments(1)
+        expected = get_expected(seg)
+        _check_bytes(read_segments(fobj, seg, nbytes, lock), expected)
+
+        seg, nbytes = random_segments(10)
+        expected = get_expected(seg)
+        _check_bytes(read_segments(fobj, seg, nbytes, lock), expected)
+
+        with lock:
+            numpassed[0] += 1
+
+    threads = [Thread(target=runtest) for i in range(100)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert numpassed[0] == len(threads)
+
+
 def _check_slicer(sliceobj, arr, fobj, offset, order,
                   heuristic=threshold_heuristic):
     new_slice = fileslice(fobj, sliceobj, arr.shape, arr.dtype, offset, order,
@@ -738,6 +796,16 @@ def test_fileslice():
                 fobj.write(arr.tostring(order=order))
                 for sliceobj in slicer_samples(shape):
                     _check_slicer(sliceobj, arr, fobj, offset, order)
+
+
+def test_fileslice_dtype():
+    # Test that any valid dtype specifier works for fileslice
+    sliceobj = (slice(None), slice(2))
+    for dt in (np.dtype('int32'), np.int32, 'i4', 'int32', '>i4', '<i4'):
+        arr = np.arange(24, dtype=dt).reshape((2, 3, 4))
+        fobj = BytesIO(arr.tostring())
+        new_slice = fileslice(fobj, sliceobj, arr.shape, dt)
+        assert_array_equal(arr[sliceobj], new_slice)
 
 
 def test_fileslice_errors():
