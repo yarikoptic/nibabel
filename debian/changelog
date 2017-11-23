@@ -1,3 +1,9 @@
+nibabel (2.2.1-1) unstable; urgency=medium
+
+  * Fresh upstream bugfix release
+
+ -- Yaroslav Halchenko <debian@onerussian.com>  Wed, 22 Nov 2017 23:01:06 -0500
+
 nibabel (2.2.0+git11-g2139ce0d-1) unstable; urgency=medium
 
   * New upstream snapshot from 2.2.0-11-g2139ce0d
