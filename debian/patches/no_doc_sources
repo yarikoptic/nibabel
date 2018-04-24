@@ -1,4 +1,4 @@
-Description: Do not put links to source documention source in HTML files
+Description: Do not put links to source documentation source in HTML files
   Documentation source files are not shipped in the binary package, because
   the are not very useful and occupy space, hence these links would be broken.
 Forwarded: not-needed
