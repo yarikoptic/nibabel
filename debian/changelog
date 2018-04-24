@@ -4,6 +4,7 @@ nibabel (2.2.1-2) unstable; urgency=medium
     - Explicitly depend on python{,3}-six module (Closes: #896275)
     - Adjusted VCS- fields to point to salsa
     - Boosted debhelper compat to 9
+    - use python3:Depends for python3- pkg
 
  -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 23 Apr 2018 20:35:21 -0400
 
