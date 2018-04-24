@@ -19,7 +19,7 @@ XS-Testsuite: autopkgtest
 
 Package: python-nibabel
 Architecture: all
-Depends: ${misc:Depends}, ${python:Depends}, python-numpy, python-scipy
+Depends: ${misc:Depends}, ${python:Depends}, python-numpy, python-scipy, python-six
 Recommends: python-dicom, python-fuse, python-mock
 Suggests: python-nibabel-doc
 Description: Python bindings to various neuroimaging data formats
@@ -37,7 +37,7 @@ Description: Python bindings to various neuroimaging data formats
 
 Package: python3-nibabel
 Architecture: all
-Depends: ${misc:Depends}, ${python:Depends}, python3-numpy, python3-scipy
+Depends: ${misc:Depends}, ${python:Depends}, python3-numpy, python3-scipy, python3-six
 Suggests: python-nibabel-doc, python3-dicom, python3-fuse, python3-mock
 Description: Python3 bindings to various neuroimaging data formats
  NiBabel provides read and write access to some common medical and

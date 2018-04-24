@@ -1,3 +1,9 @@
+nibabel (2.2.1-2) unstable; urgency=medium
+
+  * Explicitly depend on python{,3}-six module (Closes; #896275)
+
+ -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 23 Apr 2018 20:35:21 -0400
+
 nibabel (2.2.1-1) unstable; urgency=medium
 
   * Fresh upstream bugfix release
