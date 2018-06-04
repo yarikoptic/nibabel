@@ -17,8 +17,8 @@ from distutils.version import StrictVersion
 # We usually use `dev` as `_version_extra` to label this as a development
 # (pre-release) version.
 _version_major = 2
-_version_minor = 2
-_version_micro = 1
+_version_minor = 3
+_version_micro = 0
 # _version_extra = 'dev'
 _version_extra = ''
 
@@ -187,7 +187,7 @@ the top of the release notes.  Click on the badge for more information.
 # requirements.txt
 # .travis.yml
 NUMPY_MIN_VERSION = '1.7.1'
-PYDICOM_MIN_VERSION = '0.9.7'
+PYDICOM_MIN_VERSION = '0.9.9'
 SIX_MIN_VERSION = '1.3'
 
 # Main setup parameters
