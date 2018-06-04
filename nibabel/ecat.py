@@ -20,13 +20,14 @@ The matrix list is an array with one row per frame in the data.
 
 Columns in the matrix list are:
 
-* 0 - Matrix identifier (frame number)
-* 1 - matrix data start block number (subheader followed by image data)
-* 2 - Last block number of matrix (image) data
-* 3 - Matrix status:
-    * 1 - exists - rw
-    * 2 - exists - ro
-    * 3 - matrix deleted
+* 0: Matrix identifier (frame number)
+* 1: matrix data start block number (subheader followed by image data)
+* 2: Last block number of matrix (image) data
+* 3: Matrix status
+
+    * 1: hxists - rw
+    * 2: exists - ro
+    * 3: matrix deleted
 
 There is one sub-header for each image frame (or matrix in the terminology
 above).  A sub-header can also be called an *image header*.  The sub-header is
@@ -53,6 +54,7 @@ from .spatialimages import SpatialImage
 from .arraywriters import make_array_writer
 from .wrapstruct import WrapStruct
 from .fileslice import canonical_slicers, predict_shape, slice2outax
+from .deprecated import deprecate_with_version
 
 BLOCK_SIZE = 512
 
@@ -338,13 +340,14 @@ def read_mlist(fileobj, endianness):
     mlist : (nframes, 4) ndarray
         matrix list is an array with ``nframes`` rows and columns:
 
-        * 0 - Matrix identifier (frame number)
-        * 1 - matrix data start block number (subheader followed by image data)
-        * 2 - Last block number of matrix (image) data
-        * 3 - Matrix status:
-            * 1 - exists - rw
-            * 2 - exists - ro
-            * 3 - matrix deleted
+        * 0: Matrix identifier (frame number)
+        * 1: matrix data start block number (subheader followed by image data)
+        * 2: Last block number of matrix (image) data
+        * 3: Matrix status
+
+            * 1: hxists - rw
+            * 2: exists - ro
+            * 3: matrix deleted
 
     Notes
     -----
@@ -465,13 +468,13 @@ def get_series_framenumbers(mlist):
     mlist_nframes = len(frames_order)
     trueframenumbers = np.arange(nframes - mlist_nframes, nframes)
     frame_dict = {}
-    try:
-        for frame_stored, (true_order, _) in frames_order.items():
-            # frame as stored in file -> true number in series
+    for frame_stored, (true_order, _) in frames_order.items():
+        # frame as stored in file -> true number in series
+        try:
             frame_dict[frame_stored] = trueframenumbers[true_order] + 1
-        return frame_dict
-    except:
-        raise IOError('Error in header or mlist order unknown')
+        except IndexError:
+            raise IOError('Error in header or mlist order unknown')
+    return frame_dict
 
 
 def read_subheaders(fileobj, mlist, endianness):
@@ -486,7 +489,7 @@ def read_subheaders(fileobj, mlist, endianness):
         * 0 - Matrix identifier.
         * 1 - subheader block number
         * 2 - Last block number of matrix data block.
-        * 3 - Matrix status:
+        * 3 - Matrix status
     endianness : {'<', '>'}
         little / big endian code
 
@@ -846,6 +849,10 @@ class EcatImage(SpatialImage):
         return self._subheader
 
     @classmethod
+    @deprecate_with_version('from_filespec class method is deprecated.\n'
+                            'Please use the ``from_file_map`` class method '
+                            'instead.',
+                            '2.1', '4.0')
     def from_filespec(klass, filespec):
         return klass.from_filename(filespec)
 

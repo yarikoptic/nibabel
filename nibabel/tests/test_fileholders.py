@@ -1,7 +1,7 @@
 """ Testing fileholders
 """
 
-from ..externals.six import BytesIO
+from io import BytesIO
 
 
 from ..fileholders import FileHolder

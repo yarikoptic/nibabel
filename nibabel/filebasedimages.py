@@ -8,13 +8,13 @@
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
 ''' Common interface for any image format--volume or surface, binary or xml.'''
 
-import warnings
-
-from .externals.six import string_types
+from copy import deepcopy
+from six import string_types
 from .fileholders import FileHolder
 from .filename_parser import (types_filenames, TypesFilenamesError,
                               splitext_addext)
 from .openers import ImageOpener
+from .deprecated import deprecate_with_version
 
 
 class ImageFileError(Exception):
@@ -56,13 +56,14 @@ class FileBasedHeader(object):
         The copy should not be affected by any changes to the original
         object.
         '''
-        raise NotImplementedError
+        return deepcopy(self)
 
 
 class FileBasedImage(object):
     '''
-    This abstract image class defines an interface for loading/saving images
-    from disk. It doesn't define any image properties.
+    Abstract image class with interface for loading/saving images from disk.
+
+    The class doesn't define any image properties.
 
     It has:
 
@@ -76,6 +77,7 @@ class FileBasedImage(object):
        * header
 
     methods:
+
        * .get_header() (deprecated, use header property instead)
        * .to_filename(fname) - writes data to filename(s) derived from
          ``fname``, where the derivation may differ between formats.
@@ -96,9 +98,7 @@ class FileBasedImage(object):
     You cannot slice an image, and trying to slice an image generates an
     informative TypeError.
 
-
-    There are several ways of writing data.
-    =======================================
+    **There are several ways of writing data**
 
     There is the usual way, which is the default::
 
@@ -137,8 +137,7 @@ class FileBasedImage(object):
         hdr.set_data_dtype(data.dtype)
         img.to_filename(fname)
 
-    Files interface
-    ===============
+    **Files interface**
 
     The image has an attribute ``file_map``.  This is a mapping, that has keys
     corresponding to the file types that an image needs for storage.  For
@@ -190,11 +189,7 @@ class FileBasedImage(object):
         file_map : mapping, optional
            mapping giving file information for this image format
         '''
-
-        if header or self.header_class:
-            self._header = self.header_class.from_header(header)
-        else:
-            self._header = None
+        self._header = self.header_class.from_header(header)
         if extra is None:
             extra = {}
         self.extra = extra
@@ -212,16 +207,13 @@ class FileBasedImage(object):
         '''
         raise TypeError("Cannot slice image objects.")
 
+    @deprecate_with_version('get_header method is deprecated.\n'
+                            'Please use the ``img.header`` property '
+                            'instead.',
+                            '2.1', '4.0')
     def get_header(self):
         """ Get header from image
-
-        Please use the `header` property instead of `get_header`; we will
-        deprecate this method in future versions of nibabel.
         """
-        warnings.warn('``get_header`` is deprecated.\n'
-                      'Please use the ``img.header`` property '
-                      'instead',
-                      DeprecationWarning, stacklevel=2)
         return self.header
 
     def get_filename(self):
@@ -235,10 +227,9 @@ class FileBasedImage(object):
         -------
         fname : None or str
            Returns None if there is no filename, or a filename string.
-           If an image may have several filenames assoctiated with it
-           (e.g Analyze ``.img, .hdr`` pair) then we return the more
-           characteristic filename (the ``.img`` filename in the case of
-           Analyze')
+           If an image may have several filenames associated with it (e.g.
+           Analyze ``.img, .hdr`` pair) then we return the more characteristic
+           filename (the ``.img`` filename in the case of Analyze')
         '''
         # which filename is returned depends on the ordering of the
         # 'files_types' class attribute - we return the name
@@ -269,23 +260,15 @@ class FileBasedImage(object):
         return klass.from_file_map(file_map)
 
     @classmethod
-    def from_filespec(klass, filespec):
-        warnings.warn('``from_filespec`` class method is deprecated\n'
-                      'Please use the ``from_filename`` class method '
-                      'instead',
-                      DeprecationWarning, stacklevel=2)
-        klass.from_filename(filespec)
-
-    @classmethod
     def from_file_map(klass, file_map):
         raise NotImplementedError
 
     @classmethod
+    @deprecate_with_version('from_files class method is deprecated.\n'
+                            'Please use the ``from_file_map`` class method '
+                            'instead.',
+                            '1.0', '3.0')
     def from_files(klass, file_map):
-        warnings.warn('``from_files`` class method is deprecated\n'
-                      'Please use the ``from_file_map`` class method '
-                      'instead',
-                      DeprecationWarning, stacklevel=2)
         return klass.from_file_map(file_map)
 
     @classmethod
@@ -326,11 +309,11 @@ class FileBasedImage(object):
         return file_map
 
     @classmethod
+    @deprecate_with_version('filespec_to_files class method is deprecated.\n'
+                            'Please use the "filespec_to_file_map" class '
+                            'method instead.',
+                            '1.0', '3.0')
     def filespec_to_files(klass, filespec):
-        warnings.warn('``filespec_to_files`` class method is deprecated\n'
-                      'Please use the ``filespec_to_file_map`` class method '
-                      'instead',
-                      DeprecationWarning, stacklevel=2)
         return klass.filespec_to_file_map(filespec)
 
     def to_filename(self, filename):
@@ -350,20 +333,19 @@ class FileBasedImage(object):
         self.file_map = self.filespec_to_file_map(filename)
         self.to_file_map()
 
+    @deprecate_with_version('to_filespec method is deprecated.\n'
+                            'Please use the "to_filename" method instead.',
+                            '1.0', '3.0')
     def to_filespec(self, filename):
-        warnings.warn('``to_filespec`` is deprecated, please '
-                      'use ``to_filename`` instead',
-                      DeprecationWarning, stacklevel=2)
         self.to_filename(filename)
 
     def to_file_map(self, file_map=None):
         raise NotImplementedError
 
+    @deprecate_with_version('to_files method is deprecated.\n'
+                            'Please use the "to_file_map" method instead.',
+                            '1.0', '3.0')
     def to_files(self, file_map=None):
-        warnings.warn('``to_files`` method is deprecated\n'
-                      'Please use the ``to_file_map`` method '
-                      'instead',
-                      DeprecationWarning, stacklevel=2)
         self.to_file_map(file_map)
 
     @classmethod

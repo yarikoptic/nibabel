@@ -129,7 +129,7 @@ from copy import deepcopy
 import re
 from io import StringIO
 from locale import getpreferredencoding
-from nibabel.externals import OrderedDict
+from collections import OrderedDict
 
 from .keywordonly import kw_only_meth
 from .spatialimages import SpatialHeader, SpatialImage
@@ -139,6 +139,7 @@ from .affines import from_matvec, dot_reduce, apply_affine
 from .nifti1 import unit_codes
 from .fileslice import fileslice, strided_scalar
 from .openers import ImageOpener
+from .deprecated import deprecate_with_version
 
 # PSL to RAS affine
 PSL_TO_RAS = np.array([[0, 0, -1, 0],  # L -> R
@@ -205,6 +206,14 @@ _hdr_key_dict = {
     'Max. number of gradient orients': ('max_gradient_orient', int),
     # Line below added for par / rec version > 4.1
     'Number of label types   <0=no ASL>': ('nr_label_types', int),
+    # The following are duplicates of the above fields, but with slightly
+    # different abbreviation, spelling, or capatilization.  Both variants have
+    # been observed in the wild in V4.2 PAR files:
+    # https://github.com/nipy/nibabel/issues/505
+    'Series_data_type': ('series_type',),
+    'Patient Position': ('patient_position',),
+    'Repetition time [msec]': ('repetition_time', float, None),
+    'Diffusion echo time [msec]': ('diffusion_echo_time', float),
 }
 
 # Image information as coded into a numpy structured array
@@ -822,23 +831,21 @@ class PARRECHeader(SpatialHeader):
                               'not suppported.'.format(name, props))
         return props[0]
 
+    @deprecate_with_version('get_voxel_size deprecated. '
+                            'Please use "get_zooms" instead.',
+                            '2.0', '4.0')
     def get_voxel_size(self):
         """Returns the spatial extent of a voxel.
 
         Does not include the slice gap in the slice extent.
 
-        This function is deprecated and we will remove it in future versions of
-        nibabel.  Please use ``get_zooms`` instead.  If you need the slice
-        thickness not including the slice gap, use ``self.image_defs['slice
-        thickness']``.
+        If you need the slice thickness not including the slice gap, use
+        ``self.image_defs['slice thickness']``.
 
         Returns
         -------
         vox_size: shape (3,) ndarray
         """
-        warnings.warn('Please use "get_zooms" instead of "get_voxel_size"',
-                      DeprecationWarning,
-                      stacklevel=2)
         # slice orientation for the whole image series
         slice_thickness = self._get_unique_image_prop('slice thickness')
         voxsize_inplane = self._get_unique_image_prop('pixel spacing')

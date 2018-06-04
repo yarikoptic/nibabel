@@ -1,9 +1,9 @@
 """
 Python 3 compatibility tools.
 
-Copied from numpy/compat/py3k
+Copied from numpy/compat/py3k.
 
-Please prefer the routines in externals/six.py when possible
+Please prefer the routines in the six module when possible.
 
 BSD license
 """
@@ -41,6 +41,7 @@ if sys.version_info[0] >= 3:
     ints2bytes = lambda seq: bytes(seq)
     ZEROB = bytes([0])
     FileNotFoundError = FileNotFoundError
+    import builtins
 else:
     import StringIO
     StringIO = BytesIO = StringIO.StringIO
@@ -65,6 +66,8 @@ else:
 
     class FileNotFoundError(IOError):
         pass
+
+    import __builtin__ as builtins  # flake8: noqa F401
 
 
 def getexception():

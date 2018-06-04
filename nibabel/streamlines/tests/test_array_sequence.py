@@ -2,13 +2,14 @@ import os
 import sys
 import unittest
 import tempfile
+import itertools
 import numpy as np
 
 from nose.tools import assert_equal, assert_raises, assert_true
 from nibabel.testing import assert_arrays_equal
 from numpy.testing import assert_array_equal
 
-from ..array_sequence import ArraySequence, is_array_sequence
+from ..array_sequence import ArraySequence, is_array_sequence, concatenate
 
 
 SEQ_DATA = {}
@@ -91,11 +92,20 @@ class TestArraySequence(unittest.TestCase):
                       SEQ_DATA['data'])
 
     def test_creating_arraysequence_from_generator(self):
-        gen = (e for e in SEQ_DATA['data'])
-        check_arr_seq(ArraySequence(gen), SEQ_DATA['data'])
+        gen_1, gen_2 = itertools.tee((e for e in SEQ_DATA['data']))
+        seq = ArraySequence(gen_1)
+        seq_with_buffer = ArraySequence(gen_2, buffer_size=256)
+
+        # Check buffer size effect
+        assert_equal(seq_with_buffer.data.shape, seq.data.shape)
+        assert_true(seq_with_buffer._buffer_size > seq._buffer_size)
+
+        # Check generator result
+        check_arr_seq(seq, SEQ_DATA['data'])
+        check_arr_seq(seq_with_buffer, SEQ_DATA['data'])
 
         # Already consumed generator
-        check_empty_arr_seq(ArraySequence(gen))
+        check_empty_arr_seq(ArraySequence(gen_1))
 
     def test_creating_arraysequence_from_arraysequence(self):
         seq = ArraySequence(SEQ_DATA['data'])
@@ -151,6 +161,11 @@ class TestArraySequence(unittest.TestCase):
         seq = ArraySequence()
         seq.append(element)
         check_arr_seq(seq, [element])
+
+        # Append an empty array.
+        seq = SEQ_DATA['seq'].copy()  # Copy because of in-place modification.
+        seq.append([])
+        check_arr_seq(seq, SEQ_DATA['seq'])
 
         # Append an element with different shape.
         element = generate_data(nb_arrays=1,
@@ -299,3 +314,18 @@ class TestArraySequence(unittest.TestCase):
 
             # Make sure we can add new elements to it.
             loaded_seq.append(SEQ_DATA['data'][0])
+
+
+def test_concatenate():
+    seq = SEQ_DATA['seq'].copy()  # In case there is in-place modification.
+    seqs = [seq[:, [i]] for i in range(seq.common_shape[0])]
+    new_seq = concatenate(seqs, axis=1)
+    seq._data += 100  # Modifying the 'seq' shouldn't change 'new_seq'.
+    check_arr_seq(new_seq, SEQ_DATA['data'])
+    assert_true(not new_seq._is_view)
+
+    seq = SEQ_DATA['seq']
+    seqs = [seq[:, [i]] for i in range(seq.common_shape[0])]
+    new_seq = concatenate(seqs, axis=0)
+    assert_true(len(new_seq), seq.common_shape[0] * len(seq))
+    assert_array_equal(new_seq._data, seq._data.T.reshape((-1, 1)))

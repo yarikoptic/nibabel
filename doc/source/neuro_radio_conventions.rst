@@ -28,6 +28,15 @@ are on the left or right of the subject and flip the images to the taste of
 the viewer. We could unpack these uses as *neurological display convention*
 and *radiological display convention*.
 
+Here is a very nice graphic by `Chris Rorden`_ showing these display
+conventions, where the 3D rendering behind the sections shows the directions
+that the neurologist and radiologist are thinking of:
+
+.. image:: /images/rorden_radio_neuro.jpg
+
+In the image above, the subject has a stroke in left temporal lobe, causing a
+dark area on the MRI.
+
 *********************************
 Alignment of world and voxel axes
 *********************************
@@ -52,7 +61,7 @@ scanner RAS+ (see :doc:`coordinate_systems`):
     ...                         [0,  0,  0,  1]])
     >>> ijk = [1, 0, 0] # moving one unit on the first voxel axis
     >>> apply_affine(diag_affine, ijk)
-    array([ 3.,  0.,  0.])
+    array([3., 0., 0.])
 
 In this case the voxel axes are aligned to the output axes, in the sense that
 moving in a positive direction on the first voxel axis results in increasing

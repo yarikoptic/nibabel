@@ -8,6 +8,7 @@ from numbers import Integral
 from platform import processor, machine
 
 import numpy as np
+from .testing import setup_test  # flake8: noqa F401
 
 
 class CastingError(Exception):
@@ -164,6 +165,7 @@ def shared_range(flt_type, int_type):
         mx = min(mx, flt_type(2**63))
     _SHARED_RANGES[key] = (mn, mx)
     return mn, mx
+
 
 # ----------------------------------------------------------------------------
 # Routines to work out the next lowest representable integer in floating point

@@ -9,9 +9,8 @@
 # module imports
 """ Utilities to load and save image objects """
 
-import os.path as op
+import os
 import numpy as np
-import warnings
 
 from .filename_parser import splitext_addext
 from .openers import ImageOpener
@@ -19,6 +18,7 @@ from .filebasedimages import ImageFileError
 from .imageclasses import all_image_classes
 from .arrayproxy import is_proxy
 from .py3k import FileNotFoundError
+from .deprecated import deprecate_with_version
 
 
 def load(filename, **kwargs):
@@ -36,19 +36,26 @@ def load(filename, **kwargs):
     img : ``SpatialImage``
        Image of guessed type
     '''
-    if not op.exists(filename):
-        raise FileNotFoundError("No such file: '%s'" % filename)
+    try:
+        stat_result = os.stat(filename)
+    except OSError:
+        raise FileNotFoundError("No such file or no access: '%s'" % filename)
+    if stat_result.st_size <= 0:
+        raise ImageFileError("Empty file: '%s'" % filename)
     sniff = None
     for image_klass in all_image_classes:
         is_valid, sniff = image_klass.path_maybe_image(filename, sniff)
         if is_valid:
-            return image_klass.from_filename(filename, **kwargs)
+            img = image_klass.from_filename(filename, **kwargs)
+            return img
 
     raise ImageFileError('Cannot work out file type of "%s"' %
                          filename)
 
 
-@np.deprecate
+@deprecate_with_version('guessed_image_type deprecated.'
+                        '2.1',
+                        '4.0')
 def guessed_image_type(filename):
     """ Guess image type from file `filename`
 
@@ -62,8 +69,6 @@ def guessed_image_type(filename):
     image_class : class
         Class corresponding to guessed image type
     """
-    warnings.warn('guessed_image_type is deprecated', DeprecationWarning,
-                  stacklevel=2)
     sniff = None
     for image_klass in all_image_classes:
         is_valid, sniff = image_klass.path_maybe_image(filename, sniff)
@@ -105,6 +110,10 @@ def save(img, filename):
     # Inline imports, as this module really shouldn't reference any image type
     from .nifti1 import Nifti1Image, Nifti1Pair
     from .nifti2 import Nifti2Image, Nifti2Pair
+
+    klass = None
+    converted = None
+
     if type(img) == Nifti1Image and lext in ('.img', '.hdr'):
         klass = Nifti1Pair
     elif type(img) == Nifti2Image and lext in ('.img', '.hdr'):
@@ -119,22 +128,38 @@ def save(img, filename):
         if not valid_klasses:  # if list is empty
             raise ImageFileError('Cannot work out file type of "%s"' %
                                  filename)
-        klass = valid_klasses[0]
-    converted = klass.from_image(img)
+
+        # Got a list of valid extensions, but that's no guarantee
+        #   the file conversion will work. So, try each image
+        #   in order...
+        for klass in valid_klasses:
+            try:
+                converted = klass.from_image(img)
+                break
+            except Exception as e:
+                err = e
+        # ... and if none of them work, raise an error.
+        if converted is None:
+            raise err
+
+    # Here, we either have a klass or a converted image.
+    if converted is None:
+        converted = klass.from_image(img)
     converted.to_filename(filename)
 
 
-@np.deprecate_with_doc('Please use ``img.dataobj.get_unscaled()`` '
-                       'instead')
+@deprecate_with_version('read_img_data deprecated.'
+                        'Please use ``img.dataobj.get_unscaled()`` instead.'
+                        '2.0.1',
+                        '4.0')
 def read_img_data(img, prefer='scaled'):
     """ Read data from image associated with files
 
-    We've deprecated this function and will remove it soon. If you want
-    unscaled data, please use ``img.dataobj.get_unscaled()`` instead.  If you
-    want scaled data, use ``img.get_data()`` (which will cache the loaded
-    array) or ``np.array(img.dataobj)`` (which won't cache the array). If you
-    want to load the data as for a modified header, save the image with the
-    modified header, and reload.
+    If you want unscaled data, please use ``img.dataobj.get_unscaled()``
+    instead.  If you want scaled data, use ``img.get_data()`` (which will cache
+    the loaded array) or ``np.array(img.dataobj)`` (which won't cache the
+    array). If you want to load the data as for a modified header, save the
+    image with the modified header, and reload.
 
     Parameters
     ----------
@@ -210,7 +235,9 @@ def read_img_data(img, prefer='scaled'):
         return hdr.raw_data_from_fileobj(fileobj)
 
 
-@np.deprecate
+@deprecate_with_version('which_analyze_type deprecated.'
+                        '2.1',
+                        '4.0')
 def which_analyze_type(binaryblock):
     """ Is `binaryblock` from NIfTI1, NIfTI2 or Analyze header?
 
@@ -238,8 +265,6 @@ def which_analyze_type(binaryblock):
     * if ``sizeof_hdr`` is 348 or byteswapped 348 assume Analyze
     * Return None
     """
-    warnings.warn('which_analyze_type is deprecated', DeprecationWarning,
-                  stacklevel=2)
     from .nifti1 import header_dtype
     hdr_struct = np.ndarray(shape=(), dtype=header_dtype, buffer=binaryblock)
     bs_hdr_struct = hdr_struct.byteswap()

@@ -9,6 +9,7 @@
 ''' Testing for orientations module '''
 
 import numpy as np
+import warnings
 
 from nose.tools import assert_true, assert_equal, assert_raises
 
@@ -16,9 +17,10 @@ from numpy.testing import assert_array_equal
 
 from ..orientations import (io_orientation, ornt_transform, inv_ornt_aff,
                             flip_axis, apply_orientation, OrientationError,
-                            ornt2axcodes, axcodes2ornt, aff2axcodes)
+                            ornt2axcodes, axcodes2ornt, aff2axcodes,
+                            orientation_affine)
 
-from ..affines import from_matvec
+from ..affines import from_matvec, to_matvec
 
 
 IN_ARRS = [np.eye(4),
@@ -188,8 +190,8 @@ def test_io_orientation():
                          [1, 1],
                          [2, 1]])
     eps = np.finfo(float).eps
-    # Test that a Y axis appears as we increase the difference between the first
-    # two columns
+    # Test that a Y axis appears as we increase the difference between the
+    # first two columns
     for y_val, has_y in ((0, False),
                          (eps, False),
                          (eps * 5, False),
@@ -203,6 +205,25 @@ def test_io_orientation():
     assert_array_equal(io_orientation(def_aff, tol=0), pass_tol)
     def_aff[1, 1] = eps * 10
     assert_array_equal(io_orientation(def_aff, tol=1e-5), fail_tol)
+    # Test drop of rows, columns
+    mat, vec = to_matvec(def_aff)
+    aff_extra_col = np.zeros((4, 5))
+    aff_extra_col[-1, -1] = 1  # Not strictly necessary, but for completeness
+    aff_extra_col[:3, :3] = mat
+    aff_extra_col[:3, -1] = vec
+    assert_array_equal(io_orientation(aff_extra_col, tol=1e-5),
+                       [[0, 1],
+                        [np.nan, np.nan],
+                        [2, 1],
+                        [np.nan, np.nan]])
+    aff_extra_row = np.zeros((5, 4))
+    aff_extra_row[-1, -1] = 1  # Not strictly necessary, but for completeness
+    aff_extra_row[:3, :3] = mat
+    aff_extra_row[:3, -1] = vec
+    assert_array_equal(io_orientation(aff_extra_row, tol=1e-5),
+                       [[0, 1],
+                        [np.nan, np.nan],
+                        [2, 1]])
 
 
 def test_ornt_transform():
@@ -225,6 +246,12 @@ def test_ornt_transform():
                   ornt_transform,
                   [[0, 1, 1], [1, 1, 1]],
                   [[0, 1, 1], [1, 1, 1]])
+
+    # Target axes must exist in source
+    assert_raises(ValueError,
+                  ornt_transform,
+                  [[0, 1], [1, 1], [1, 1]],
+                  [[0, 1], [1, 1], [2, 1]])
 
 
 def test_ornt2axcodes():
@@ -281,11 +308,8 @@ def test_axcodes2ornt():
                        )
 
     # default is RAS output directions
-    assert_array_equal(axcodes2ornt(('R', 'A', 'S')),
-                       [[0, 1],
-                        [1, 1],
-                        [2, 1]]
-                       )
+    default = np.c_[range(3), [1] * 3]
+    assert_array_equal(axcodes2ornt(('R', 'A', 'S')), default)
 
     # dropped axes produce None
     assert_array_equal(axcodes2ornt(('R', None, 'S')),
@@ -293,6 +317,28 @@ def test_axcodes2ornt():
                         [np.nan, np.nan],
                         [2, 1]]
                        )
+
+    # Missing axcodes raise an error
+    assert_array_equal(axcodes2ornt('RAS'), default)
+    assert_raises(ValueError, axcodes2ornt, 'rAS')
+    # None is OK as axis code
+    assert_array_equal(axcodes2ornt(('R', None, 'S')),
+                                    [[0, 1],
+                                     [np.nan, np.nan],
+                                     [2, 1]])
+    # Bad axis code with None also raises error.
+    assert_raises(ValueError, axcodes2ornt, ('R', None, 's'))
+    # Axis codes checked with custom labels
+    labels = ('SD', 'BF', 'lh')
+    assert_array_equal(axcodes2ornt('BlD', labels),
+                       [[1, -1],
+                        [2, -1],
+                        [0, 1]])
+    assert_raises(ValueError, axcodes2ornt, 'blD', labels)
+
+    # Duplicate labels
+    assert_raises(ValueError, axcodes2ornt, 'blD', ('SD', 'BF', 'lD'))
+    assert_raises(ValueError, axcodes2ornt, 'blD', ('SD', 'SF', 'lD'))
 
 
 def test_aff2axcodes():
@@ -309,3 +355,13 @@ def test_inv_ornt_aff():
     # io_orientations test)
     assert_raises(OrientationError, inv_ornt_aff,
                   [[0, 1], [1, -1], [np.nan, np.nan]], (3, 4, 5))
+
+
+def test_orientation_affine_deprecation():
+    aff1 = inv_ornt_aff([[0, 1], [1, -1], [2, 1]], (3, 4, 5))
+    with warnings.catch_warnings(record=True) as warns:
+        warnings.simplefilter('always')
+        aff2 = orientation_affine([[0, 1], [1, -1], [2, 1]], (3, 4, 5))
+        assert_equal(len(warns), 1)
+        assert_equal(warns[0].category, DeprecationWarning)
+    assert_array_equal(aff1, aff2)

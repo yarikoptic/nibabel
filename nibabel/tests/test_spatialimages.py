@@ -14,9 +14,10 @@ import warnings
 
 import numpy as np
 
-from ..externals.six import BytesIO
+from io import BytesIO
 from ..spatialimages import (SpatialHeader, SpatialImage, HeaderDataError,
                              Header, ImageDataError)
+from ..imageclasses import spatial_axes_first
 
 from unittest import TestCase
 from nose.tools import (assert_true, assert_false, assert_equal,
@@ -25,7 +26,7 @@ from numpy.testing import assert_array_equal, assert_array_almost_equal
 
 from .test_helpers import bytesio_round_trip
 from ..testing import (clear_and_catch_warnings, suppress_warnings,
-                       VIRAL_MEMMAP)
+                       memmap_after_ufunc)
 from ..tmpdirs import InTemporaryDirectory
 from .. import load as top_load
 
@@ -195,7 +196,7 @@ class DataLike(object):
     shape = (3,)
 
     def __array__(self):
-        return np.arange(3)
+        return np.arange(3, dtype=np.int16)
 
 
 class TestSpatialImage(TestCase):
@@ -249,8 +250,11 @@ class TestSpatialImage(TestCase):
     def test_data_api(self):
         # Test minimal api data object can initialize
         img = self.image_class(DataLike(), None)
-        assert_array_equal(img.get_data(), np.arange(3))
-        assert_equal(img.shape, (3,))
+        # Shape may be promoted to higher dimension, but may not reorder or
+        # change size
+        assert_array_equal(img.get_data().flatten(), np.arange(3))
+        assert_equal(img.get_shape()[:1], (3,))
+        assert_equal(np.prod(img.get_shape()), 3)
 
     def check_dtypes(self, expected, actual):
         # Some images will want dtypes to be equal including endianness,
@@ -278,7 +282,10 @@ class TestSpatialImage(TestCase):
         # See https://github.com/nipy/nibabel/issues/58
         arr = np.arange(4, dtype=np.int16)
         img = img_klass(arr, np.eye(4))
-        assert_equal(img.shape, (4,))
+        # Shape may be promoted to higher dimension, but may not reorder or
+        # change size
+        assert_equal(img.get_shape()[:1], (4,))
+        assert_equal(np.prod(img.get_shape()), 4)
         img = img_klass(np.zeros((2, 3, 4), dtype=np.float32), np.eye(4))
         assert_equal(img.shape, (2, 3, 4))
 
@@ -290,7 +297,10 @@ class TestSpatialImage(TestCase):
         arr = np.arange(5, dtype=np.int16)
         img = img_klass(arr, np.eye(4))
         assert_true(len(str(img)) > 0)
-        assert_equal(img.shape, (5,))
+        # Shape may be promoted to higher dimension, but may not reorder or
+        # change size
+        assert_equal(img.shape[:1], (5,))
+        assert_equal(np.prod(img.shape), 5)
         img = img_klass(np.zeros((2, 3, 4), dtype=np.int16), np.eye(4))
         assert_true(len(str(img)) > 0)
 
@@ -302,9 +312,68 @@ class TestSpatialImage(TestCase):
         # See https://github.com/nipy/nibabel/issues/58
         img = img_klass(np.arange(1, dtype=np.int16), np.eye(4))
         with suppress_warnings():
-            assert_equal(img.get_shape(), (1,))
+            # Shape may be promoted to higher dimension, but may not reorder or
+            # change size
+            assert_equal(img.get_shape()[:1], (1,))
+            assert_equal(np.prod(img.get_shape()), 1)
             img = img_klass(np.zeros((2, 3, 4), np.int16), np.eye(4))
             assert_equal(img.get_shape(), (2, 3, 4))
+
+    def test_get_fdata(self):
+        # Test array image and proxy image interface for floating point data
+        img_klass = self.image_class
+        in_data_template = np.arange(24, dtype=np.int16).reshape((2, 3, 4))
+        in_data = in_data_template.copy()
+        img = img_klass(in_data, None)
+        assert_true(in_data is img.dataobj)
+        # The get_fdata method changes the array to floating point type
+        assert_equal(img.get_fdata(dtype='f4').dtype, np.dtype(np.float32))
+        fdata_32 = img.get_fdata(dtype=np.float32)
+        assert_equal(fdata_32.dtype, np.dtype(np.float32))
+        # Caching is specific to data dtype.  If we reload with default data
+        # type, the cache gets reset
+        fdata_32[:] = 99
+        # Cache has been modified, we pick up the modifications, but only for
+        # the cached data type
+        assert_array_equal(img.get_fdata(dtype='f4'), 99)
+        fdata_64 = img.get_fdata()
+        assert_equal(fdata_64.dtype, np.dtype(np.float64))
+        assert_array_equal(fdata_64, in_data)
+        fdata_64[:] = 101
+        assert_array_equal(img.get_fdata(dtype='f8'), 101)
+        assert_array_equal(img.get_fdata(), 101)
+        # Reloading with new data type blew away the float32 cache
+        assert_array_equal(img.get_fdata(dtype='f4'), in_data)
+        img.uncache()
+        # Now recaching, is float64
+        out_data = img.get_fdata()
+        assert_equal(out_data.dtype, np.dtype(np.float64))
+        # Input dtype needs to be floating point
+        assert_raises(ValueError, img.get_fdata, dtype=np.int16)
+        assert_raises(ValueError, img.get_fdata, dtype=np.int32)
+        # The cache is filled
+        out_data[:] = 42
+        assert_true(img.get_fdata() is out_data)
+        img.uncache()
+        assert_false(img.get_fdata() is out_data)
+        # The 42 has gone now.
+        assert_array_equal(img.get_fdata(), in_data_template)
+        # If we can save, we can create a proxy image
+        if not self.can_save:
+            return
+        rt_img = bytesio_round_trip(img)
+        assert_false(in_data is rt_img.dataobj)
+        assert_array_equal(rt_img.dataobj, in_data)
+        out_data = rt_img.get_fdata()
+        assert_array_equal(out_data, in_data)
+        assert_false(rt_img.dataobj is out_data)
+        assert_equal(out_data.dtype, np.dtype(np.float64))
+        # cache
+        assert_true(rt_img.get_fdata() is out_data)
+        out_data[:] = 42
+        rt_img.uncache()
+        assert_false(rt_img.get_fdata() is out_data)
+        assert_array_equal(rt_img.get_fdata(), in_data)
 
     def test_get_data(self):
         # Test array image and proxy image interface
@@ -312,6 +381,15 @@ class TestSpatialImage(TestCase):
         in_data_template = np.arange(24, dtype=np.int16).reshape((2, 3, 4))
         in_data = in_data_template.copy()
         img = img_klass(in_data, None)
+        # Can't slice into the image object:
+        with assert_raises(TypeError) as exception_manager:
+            img[0, 0, 0]
+        # Make sure the right message gets raised:
+        assert_equal(str(exception_manager.exception),
+                     "Cannot slice image objects; consider using "
+                     "`img.slicer[slice]` to generate a sliced image (see "
+                     "documentation for caveats) or slicing image array data "
+                     "with `img.dataobj[slice]` or `img.get_data()[slice]`")
         assert_true(in_data is img.dataobj)
         out_data = img.get_data()
         assert_true(in_data is out_data)
@@ -334,6 +412,165 @@ class TestSpatialImage(TestCase):
         rt_img.uncache()
         assert_false(rt_img.get_data() is out_data)
         assert_array_equal(rt_img.get_data(), in_data)
+
+    def test_slicer(self):
+        img_klass = self.image_class
+        in_data_template = np.arange(240, dtype=np.int16)
+        base_affine = np.eye(4)
+        t_axis = None
+        for dshape in ((4, 5, 6, 2),    # Time series
+                       (8, 5, 6)):      # Volume
+            in_data = in_data_template.copy().reshape(dshape)
+            img = img_klass(in_data, base_affine.copy())
+
+            if not spatial_axes_first(img):
+                with assert_raises(ValueError):
+                    img.slicer
+                continue
+
+            assert_true(hasattr(img.slicer, '__getitem__'))
+
+            # Note spatial zooms are always first 3, even when
+            spatial_zooms = img.header.get_zooms()[:3]
+
+            # Down-sample with [::2, ::2, ::2] along spatial dimensions
+            sliceobj = [slice(None, None, 2)] * 3 + \
+                [slice(None)] * (len(dshape) - 3)
+            downsampled_img = img.slicer[tuple(sliceobj)]
+            assert_array_equal(downsampled_img.header.get_zooms()[:3],
+                               np.array(spatial_zooms) * 2)
+
+            max4d = (hasattr(img.header, '_structarr') and
+                     'dims' in img.header._structarr.dtype.fields and
+                     img.header._structarr['dims'].shape == (4,))
+            # Check newaxis and single-slice errors
+            with assert_raises(IndexError):
+                img.slicer[None]
+            with assert_raises(IndexError):
+                img.slicer[0]
+            # Axes 1 and 2 are always spatial
+            with assert_raises(IndexError):
+                img.slicer[:, None]
+            with assert_raises(IndexError):
+                img.slicer[:, 0]
+            with assert_raises(IndexError):
+                img.slicer[:, :, None]
+            with assert_raises(IndexError):
+                img.slicer[:, :, 0]
+            if len(img.shape) == 4:
+                if max4d:
+                    with assert_raises(ValueError):
+                        img.slicer[:, :, :, None]
+                else:
+                    # Reorder non-spatial axes
+                    assert_equal(img.slicer[:, :, :, None].shape,
+                                 img.shape[:3] + (1,) + img.shape[3:])
+                # 4D to 3D using ellipsis or slices
+                assert_equal(img.slicer[..., 0].shape, img.shape[:-1])
+                assert_equal(img.slicer[:, :, :, 0].shape, img.shape[:-1])
+            else:
+                # 3D Analyze/NIfTI/MGH to 4D
+                assert_equal(img.slicer[:, :, :, None].shape, img.shape + (1,))
+            if len(img.shape) == 3:
+                # Slices exceed dimensions
+                with assert_raises(IndexError):
+                    img.slicer[:, :, :, :, None]
+            elif max4d:
+                with assert_raises(ValueError):
+                    img.slicer[:, :, :, :, None]
+            else:
+                assert_equal(img.slicer[:, :, :, :, None].shape,
+                             img.shape + (1,))
+
+            # Crop by one voxel in each dimension
+            sliced_i = img.slicer[1:]
+            sliced_j = img.slicer[:, 1:]
+            sliced_k = img.slicer[:, :, 1:]
+            sliced_ijk = img.slicer[1:, 1:, 1:]
+
+            # No scaling change
+            assert_array_equal(sliced_i.affine[:3, :3], img.affine[:3, :3])
+            assert_array_equal(sliced_j.affine[:3, :3], img.affine[:3, :3])
+            assert_array_equal(sliced_k.affine[:3, :3], img.affine[:3, :3])
+            assert_array_equal(sliced_ijk.affine[:3, :3], img.affine[:3, :3])
+            # Translation
+            assert_array_equal(sliced_i.affine[:, 3], [1, 0, 0, 1])
+            assert_array_equal(sliced_j.affine[:, 3], [0, 1, 0, 1])
+            assert_array_equal(sliced_k.affine[:, 3], [0, 0, 1, 1])
+            assert_array_equal(sliced_ijk.affine[:, 3], [1, 1, 1, 1])
+
+            # No change to affines with upper-bound slices
+            assert_array_equal(img.slicer[:1, :1, :1].affine, img.affine)
+
+            # Yell about step = 0
+            with assert_raises(ValueError):
+                img.slicer[:, ::0]
+            with assert_raises(ValueError):
+                img.slicer.slice_affine((slice(None), slice(None, None, 0)))
+
+            # Don't permit zero-length slices
+            with assert_raises(IndexError):
+                img.slicer[:0]
+
+            # No fancy indexing
+            with assert_raises(IndexError):
+                img.slicer[[0]]
+            with assert_raises(IndexError):
+                img.slicer[[-1]]
+            with assert_raises(IndexError):
+                img.slicer[[0], [-1]]
+
+            # Check data is consistent with slicing numpy arrays
+            slice_elems = (None, Ellipsis, 0, 1, -1, [0], [1], [-1],
+                           slice(None), slice(1), slice(-1), slice(1, -1))
+            for n_elems in range(6):
+                for _ in range(1 if n_elems == 0 else 10):
+                    sliceobj = tuple(
+                        np.random.choice(slice_elems, n_elems).tolist())
+                    try:
+                        sliced_img = img.slicer[sliceobj]
+                    except (IndexError, ValueError):
+                        # Only checking valid slices
+                        pass
+                    else:
+                        sliced_data = in_data[sliceobj]
+                        assert_array_equal(sliced_data, sliced_img.get_data())
+                        assert_array_equal(sliced_data, sliced_img.dataobj)
+                        assert_array_equal(sliced_data, img.dataobj[sliceobj])
+                        assert_array_equal(sliced_data, img.get_data()[sliceobj])
+
+    def test_api_deprecations(self):
+
+        class FakeImage(self.image_class):
+
+            files_types = (('image', '.foo'),)
+
+            @classmethod
+            def to_file_map(self, file_map=None):
+                pass
+
+            @classmethod
+            def from_file_map(self, file_map=None):
+                pass
+
+        arr = np.arange(24, dtype=np.int16).reshape((2, 3, 4))
+        aff = np.eye(4)
+        img = FakeImage(arr, aff)
+        bio = BytesIO()
+        file_map = FakeImage.make_file_map({'image': bio})
+
+        with clear_and_catch_warnings() as w:
+            warnings.simplefilter('always', DeprecationWarning)
+            img.to_files(file_map)
+            assert_equal(len(w), 1)
+            img.to_filespec('an_image')
+            assert_equal(len(w), 2)
+            img = FakeImage.from_files(file_map)
+            assert_equal(len(w), 3)
+            file_map = FakeImage.filespec_to_files('an_image')
+            assert_equal(list(file_map), ['image'])
+            assert_equal(file_map['image'].filename, 'an_image.foo')
+            assert_equal(len(w), 4)
 
 
 class MmapImageMixin(object):
@@ -367,6 +604,7 @@ class MmapImageMixin(object):
     def test_load_mmap(self):
         # Test memory mapping when loading images
         img_klass = self.image_class
+        viral_memmap = memmap_after_ufunc()
         with InTemporaryDirectory():
             img, fname, has_scaling = self.get_disk_image()
             file_map = img.file_map.copy()
@@ -388,7 +626,7 @@ class MmapImageMixin(object):
                     # numpies returned a memmap object, even though the array
                     # has no mmap memory backing.  See:
                     # https://github.com/numpy/numpy/pull/7406
-                    if has_scaling and not VIRAL_MEMMAP:
+                    if has_scaling and not viral_memmap:
                         expected_mode = None
                     kwargs = {}
                     if mmap is not None:

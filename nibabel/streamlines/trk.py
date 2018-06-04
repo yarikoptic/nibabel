@@ -5,8 +5,8 @@ from __future__ import division
 
 import os
 import struct
-import warnings
 import string
+import warnings
 
 import numpy as np
 import nibabel as nib
@@ -21,41 +21,17 @@ from .tractogram_file import TractogramFile
 from .tractogram_file import DataError, HeaderError, HeaderWarning
 from .tractogram import TractogramItem, Tractogram, LazyTractogram
 from .header import Field
+from .utils import peek_next
 
 
 MAX_NB_NAMED_SCALARS_PER_POINT = 10
 MAX_NB_NAMED_PROPERTIES_PER_STREAMLINE = 10
 
-# See http://docs.scipy.org/doc/numpy/reference/arrays.dtypes.html
-header_1_dtd = [(Field.MAGIC_NUMBER, 'S6'),
-                (Field.DIMENSIONS, 'h', 3),
-                (Field.VOXEL_SIZES, 'f4', 3),
-                (Field.ORIGIN, 'f4', 3),
-                (Field.NB_SCALARS_PER_POINT, 'h'),
-                ('scalar_name', 'S20', MAX_NB_NAMED_SCALARS_PER_POINT),
-                (Field.NB_PROPERTIES_PER_STREAMLINE, 'h'),
-                ('property_name', 'S20',
-                 MAX_NB_NAMED_PROPERTIES_PER_STREAMLINE),
-                ('reserved', 'S508'),
-                (Field.VOXEL_ORDER, 'S4'),
-                ('pad2', 'S4'),
-                ('image_orientation_patient', 'f4', 6),
-                ('pad1', 'S2'),
-                ('invert_x', 'S1'),
-                ('invert_y', 'S1'),
-                ('invert_z', 'S1'),
-                ('swap_xy', 'S1'),
-                ('swap_yz', 'S1'),
-                ('swap_zx', 'S1'),
-                (Field.NB_STREAMLINES, 'i4'),
-                ('version', 'i4'),
-                ('hdr_size', 'i4'),
-                ]
-
-# Version 2 adds a 4x4 matrix giving the affine transformtation going
+# Version 2 adds a 4x4 matrix giving the affine transformation going
 # from voxel coordinates in the referenced 3D voxel matrix, to xyz
 # coordinates (axes L->R, P->A, I->S). If (0 based) value [3, 3] from
 # this matrix is 0, this means the matrix is not recorded.
+# See http://docs.scipy.org/doc/numpy/reference/arrays.dtypes.html
 header_2_dtd = [(Field.MAGIC_NUMBER, 'S6'),
                 (Field.DIMENSIONS, 'h', 3),
                 (Field.VOXEL_SIZES, 'f4', 3),
@@ -83,7 +59,6 @@ header_2_dtd = [(Field.MAGIC_NUMBER, 'S6'),
                 ]
 
 # Full header numpy dtypes
-header_1_dtype = np.dtype(header_1_dtd)
 header_2_dtype = np.dtype(header_2_dtd)
 
 
@@ -98,8 +73,8 @@ def get_affine_trackvis_to_rasmm(header):
 
     Parameters
     ----------
-    header : dict
-        Dict containing trackvis header.
+    header : dict or ndarray
+        Dict or numpy structured array containing trackvis header.
 
     Returns
     -------
@@ -127,9 +102,12 @@ def get_affine_trackvis_to_rasmm(header):
     # If the voxel order implied by the affine does not match the voxel
     # order in the TRK header, change the orientation.
     # voxel (header) -> voxel (affine)
-    header_ornt = asstr(header[Field.VOXEL_ORDER])
+    vox_order = header[Field.VOXEL_ORDER]
+    # Input header can be dict or structured array
+    if hasattr(vox_order, 'item'):  # structured array
+        vox_order = header[Field.VOXEL_ORDER].item()
     affine_ornt = "".join(aff2axcodes(header[Field.VOXEL_TO_RASMM]))
-    header_ornt = axcodes2ornt(header_ornt)
+    header_ornt = axcodes2ornt(vox_order.decode('latin1').upper())
     affine_ornt = axcodes2ornt(affine_ornt)
     ornt = nib.orientations.ornt_transform(header_ornt, affine_ornt)
     M = nib.orientations.inv_ornt_aff(ornt, header[Field.DIMENSIONS])
@@ -225,27 +203,11 @@ def decode_value_from_name(encoded_name):
     return name, value
 
 
-def create_empty_header():
-    """ Return an empty compliant TRK header. """
-    header = np.zeros(1, dtype=header_2_dtype)
-
-    # Default values
-    header[Field.MAGIC_NUMBER] = TrkFile.MAGIC_NUMBER
-    header[Field.VOXEL_SIZES] = np.array((1, 1, 1), dtype="f4")
-    header[Field.DIMENSIONS] = np.array((1, 1, 1), dtype="h")
-    header[Field.VOXEL_TO_RASMM] = np.eye(4, dtype="f4")
-    header[Field.VOXEL_ORDER] = b"RAS"
-    header['version'] = 2
-    header['hdr_size'] = TrkFile.HEADER_SIZE
-
-    return header
-
-
 class TrkFile(TractogramFile):
     """ Convenience class to encapsulate TRK file format.
 
-    Note
-    ----
+    Notes
+    -----
     TrackVis (so its file format: TRK) considers the streamline coordinate
     (0,0,0) to be in the corner of the voxel whereas NiBabel's streamlines
     internal representation (Voxel space) assumes (0,0,0) to be in the
@@ -277,10 +239,6 @@ class TrkFile(TractogramFile):
         and *mm* space where coordinate (0,0,0) refers to the center
         of the voxel.
         """
-        if header is None:
-            header_rec = create_empty_header()
-            header = dict(zip(header_rec.dtype.names, header_rec[0]))
-
         super(TrkFile, self).__init__(tractogram, header)
 
     @classmethod
@@ -306,6 +264,30 @@ class TrkFile(TractogramFile):
             magic_number = f.read(magic_len)
             f.seek(-magic_len, os.SEEK_CUR)
             return magic_number == cls.MAGIC_NUMBER
+
+    @classmethod
+    def _default_structarr(cls):
+        """ Return an empty compliant TRK header as numpy structured array
+        """
+        st_arr = np.zeros((), dtype=header_2_dtype)
+
+        # Default values
+        st_arr[Field.MAGIC_NUMBER] = cls.MAGIC_NUMBER
+        st_arr[Field.VOXEL_SIZES] = np.array((1, 1, 1), dtype="f4")
+        st_arr[Field.DIMENSIONS] = np.array((1, 1, 1), dtype="h")
+        st_arr[Field.VOXEL_TO_RASMM] = np.eye(4, dtype="f4")
+        st_arr[Field.VOXEL_ORDER] = b"RAS"
+        st_arr['version'] = 2
+        st_arr['hdr_size'] = cls.HEADER_SIZE
+
+        return st_arr
+
+    @classmethod
+    def create_empty_header(cls):
+        """ Return an empty compliant TRK header as dict
+        """
+        st_arr = cls._default_structarr()
+        return dict(zip(st_arr.dtype.names, st_arr.tolist()))
 
     @classmethod
     def load(cls, fileobj, lazy_load=False):
@@ -340,8 +322,8 @@ class TrkFile(TractogramFile):
         data_per_point_slice = {}
         if hdr[Field.NB_SCALARS_PER_POINT] > 0:
             cpt = 0
-            for scalar_name in hdr['scalar_name']:
-                scalar_name, nb_scalars = decode_value_from_name(scalar_name)
+            for scalar_field in hdr['scalar_name']:
+                scalar_name, nb_scalars = decode_value_from_name(scalar_field)
 
                 if nb_scalars == 0:
                     continue
@@ -357,8 +339,8 @@ class TrkFile(TractogramFile):
         data_per_streamline_slice = {}
         if hdr[Field.NB_PROPERTIES_PER_STREAMLINE] > 0:
             cpt = 0
-            for property_name in hdr['property_name']:
-                results = decode_value_from_name(property_name)
+            for property_field in hdr['property_name']:
+                results = decode_value_from_name(property_field)
                 property_name, nb_properties = results
 
                 if nb_properties == 0:
@@ -413,7 +395,8 @@ class TrkFile(TractogramFile):
             pointing to TRK file (and ready to write from the beginning
             of the TRK header data).
         """
-        header = create_empty_header()
+        # Enforce little-endian byte order for header
+        header = self._default_structarr().newbyteorder('<')
 
         # Override hdr's fields by those contained in `header`.
         for k, v in self.header.items():
@@ -431,7 +414,6 @@ class TrkFile(TractogramFile):
         nb_scalars = 0
         nb_properties = 0
 
-        header = header[0]
         with Opener(fileobj, mode="wb") as f:
             # Keep track of the beginning of the header.
             beginning = f.tell()
@@ -442,8 +424,23 @@ class TrkFile(TractogramFile):
             i4_dtype = np.dtype("<i4")  # Always save in little-endian.
             f4_dtype = np.dtype("<f4")  # Always save in little-endian.
 
+            # Since the TRK format requires the streamlines to be saved in
+            # voxmm, we first transform them accordingly. The transformation
+            # is performed lazily since `self.tractogram` might be a
+            # LazyTractogram object, which means we might be able to loop
+            # over the streamlines only once.
+            tractogram = self.tractogram.to_world(lazy=True)
+            affine_to_trackvis = get_affine_rasmm_to_trackvis(header)
+            tractogram = tractogram.apply_affine(affine_to_trackvis, lazy=True)
+
+            # Create the iterator we'll be using for the rest of the funciton.
+            tractogram = iter(tractogram)
+
             try:
-                first_item = next(iter(self.tractogram))
+                # Use the first element to check
+                #  1) the tractogram is not empty;
+                #  2) quantity of information saved along each streamline.
+                first_item, tractogram = peek_next(tractogram)
             except StopIteration:
                 # Empty tractogram
                 header[Field.NB_STREAMLINES] = 0
@@ -489,30 +486,25 @@ class TrkFile(TractogramFile):
                 scalar_name[i] = encode_value_in_name(nb_values, name)
             header['scalar_name'][:] = scalar_name
 
-            # Make sure streamlines are in rasmm then send them to voxmm.
-            tractogram = self.tractogram.to_world(lazy=True)
-            affine_to_trackvis = get_affine_rasmm_to_trackvis(header)
-            tractogram = tractogram.apply_affine(affine_to_trackvis, lazy=True)
-
             for t in tractogram:
                 if any((len(d) != len(t.streamline)
                         for d in t.data_for_points.values())):
                     raise DataError("Missing scalars for some points!")
 
-                points = np.asarray(t.streamline, dtype=f4_dtype)
-                scalars = [np.asarray(t.data_for_points[k], dtype=f4_dtype)
+                points = np.asarray(t.streamline)
+                scalars = [np.asarray(t.data_for_points[k])
                            for k in data_for_points_keys]
-                scalars = np.concatenate([np.ndarray((len(points), 0),
-                                                     dtype=f4_dtype)
+                scalars = np.concatenate([np.ndarray((len(points), 0),)
                                           ] + scalars, axis=1)
-                properties = [np.asarray(t.data_for_streamline[k],
-                                         dtype=f4_dtype)
+                properties = [np.asarray(t.data_for_streamline[k])
                               for k in data_for_streamline_keys]
-                properties = np.concatenate([np.array([], dtype=f4_dtype)
-                                             ] + properties)
+                properties = np.concatenate(
+                    [np.array([])] + properties).astype(f4_dtype)
 
                 data = struct.pack(i4_dtype.str[:-1], len(points))
-                data += np.concatenate([points, scalars], axis=1).tostring()
+                pts_scalars = np.concatenate(
+                    [points, scalars], axis=1).astype(f4_dtype)
+                data += pts_scalars.tostring()
                 data += properties.tostring()
                 f.write(data)
 
@@ -582,8 +574,8 @@ class TrkFile(TractogramFile):
                                                  TrkFile.HEADER_SIZE))
 
             if header_rec['version'] == 1:
-                header_rec = np.fromstring(string=header_str,
-                                           dtype=header_1_dtype)
+                # There is no 4x4 matrix for voxel to RAS transformation.
+                header_rec[Field.VOXEL_TO_RASMM] = np.zeros((4, 4))
             elif header_rec['version'] == 2:
                 pass  # Nothing more to do.
             else:
@@ -621,7 +613,7 @@ class TrkFile(TractogramFile):
             # Keep the file position where the data begin.
             header['_offset_data'] = f.tell()
 
-        # Set the file position where it was, if it was previously open
+        # Set the file position where it was, if it was previously open.
         if start_position is not None:
             fileobj.seek(start_position, os.SEEK_SET)
 
@@ -722,22 +714,31 @@ class TrkFile(TractogramFile):
                 hdr_field = getattr(Field, attr)
                 if hdr_field in vars:
                     vars[attr] = vars[hdr_field]
-        vars['scalar_names'] = '\n  '.join([asstr(s)
-                                            for s in vars['scalar_name']
-                                            if len(s) > 0])
-        vars['property_names'] = "\n  ".join([asstr(s)
-                                              for s in vars['property_name']
-                                              if len(s) > 0])
+
+        nb_scalars = self.header[Field.NB_SCALARS_PER_POINT]
+        scalar_names = [asstr(s)
+                        for s in vars['scalar_name'][:nb_scalars]
+                        if len(s) > 0]
+        vars['scalar_names'] = '\n  '.join(scalar_names)
+        nb_properties = self.header[Field.NB_PROPERTIES_PER_STREAMLINE]
+        property_names = [asstr(s)
+                          for s in vars['property_name'][:nb_properties]
+                          if len(s) > 0]
+        vars['property_names'] = "\n  ".join(property_names)
+        # Make all byte strings into strings
+        # Fixes recursion error on Python 3.3
+        vars = dict((k, asstr(v) if hasattr(v, 'decode') else v)
+                    for k, v in vars.items())
         return """\
 MAGIC NUMBER: {MAGIC_NUMBER}
 v.{version}
 dim: {DIMENSIONS}
 voxel_sizes: {VOXEL_SIZES}
-orgin: {ORIGIN}
+origin: {ORIGIN}
 nb_scalars: {NB_SCALARS_PER_POINT}
-scalar_name:\n  {scalar_names}
+scalar_names:\n  {scalar_names}
 nb_properties: {NB_PROPERTIES_PER_STREAMLINE}
-property_name:\n  {property_names}
+property_names:\n  {property_names}
 vox_to_world:\n{VOXEL_TO_RASMM}
 voxel_order: {VOXEL_ORDER}
 image_orientation_patient: {image_orientation_patient}

@@ -16,7 +16,7 @@ def is_data_dict(obj):
 
 def is_lazy_dict(obj):
     """ True if `obj` seems to implement the :class:`LazyDict` API """
-    return is_data_dict(obj) and callable(obj.store.values()[0])
+    return is_data_dict(obj) and callable(list(obj.store.values())[0])
 
 
 class SliceableDataDict(collections.MutableMapping):
@@ -59,6 +59,9 @@ class SliceableDataDict(collections.MutableMapping):
         # Key was not a valid index/slice after all.
         return self.store[key]  # Will raise the proper error.
 
+    def __contains__(self, key):
+        return key in self.store
+
     def __delitem__(self, key):
         del self.store[key]
 
@@ -74,7 +77,7 @@ class PerArrayDict(SliceableDataDict):
 
     This container behaves like a standard dictionary but extends key access to
     allow keys for key access to be indices slicing into the contained ndarray
-    values.  The elements must also be ndarrays.
+    values. The elements must also be ndarrays.
 
     In addition, it makes sure the amount of data contained in those ndarrays
     matches the number of streamlines given at the instantiation of this
@@ -90,7 +93,7 @@ class PerArrayDict(SliceableDataDict):
         Positional and keyword arguments, passed straight through the ``dict``
         constructor.
     """
-    def __init__(self, n_rows=None, *args, **kwargs):
+    def __init__(self, n_rows=0, *args, **kwargs):
         self.n_rows = n_rows
         super(PerArrayDict, self).__init__(*args, **kwargs)
 
@@ -105,12 +108,50 @@ class PerArrayDict(SliceableDataDict):
             raise ValueError("data_per_streamline must be a 2D array.")
 
         # We make sure there is the right amount of values
-        if self.n_rows is not None and len(value) != self.n_rows:
+        if self.n_rows > 0 and len(value) != self.n_rows:
             msg = ("The number of values ({0}) should match n_elements "
                    "({1}).").format(len(value), self.n_rows)
             raise ValueError(msg)
 
         self.store[key] = value
+
+    def _extend_entry(self, key, value):
+        """ Appends the `value` to the entry specified by `key`. """
+        self[key] = np.concatenate([self[key], value])
+
+    def extend(self, other):
+        """ Appends the elements of another :class:`PerArrayDict`.
+
+        That is, for each entry in this dictionary, we append the elements
+        coming from the other dictionary at the corresponding entry.
+
+        Parameters
+        ----------
+        other : :class:`PerArrayDict` object
+            Its data will be appended to the data of this dictionary.
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        The keys in both dictionaries must be the same.
+        """
+        if (len(self) > 0 and len(other) > 0 and
+                sorted(self.keys()) != sorted(other.keys())):
+            msg = ("Entry mismatched between the two PerArrayDict objects."
+                   " This PerArrayDict contains '{0}' whereas the other "
+                   " contains '{1}'.").format(sorted(self.keys()),
+                                              sorted(other.keys()))
+            raise ValueError(msg)
+
+        self.n_rows += other.n_rows
+        for key in other.keys():
+            if key not in self:
+                self[key] = other[key]
+            else:
+                self._extend_entry(key, other[key])
 
 
 class PerArraySequenceDict(PerArrayDict):
@@ -128,13 +169,16 @@ class PerArraySequenceDict(PerArrayDict):
         value = ArraySequence(value)
 
         # We make sure there is the right amount of data.
-        if (self.n_rows is not None and
-                value.total_nb_rows != self.n_rows):
+        if self.n_rows > 0 and value.total_nb_rows != self.n_rows:
             msg = ("The number of values ({0}) should match "
                    "({1}).").format(value.total_nb_rows, self.n_rows)
             raise ValueError(msg)
 
         self.store[key] = value
+
+    def _extend_entry(self, key, value):
+        """ Appends the `value` to the entry specified by `key`. """
+        self[key].extend(value)
 
 
 class LazyDict(collections.MutableMapping):
@@ -156,17 +200,17 @@ class LazyDict(collections.MutableMapping):
                 self.update(**args[0].store)  # Copy the generator functions.
                 return
 
-            if isinstance(args[0], SliceableDataDict):
-                self.update(**args[0])
-
         self.update(dict(*args, **kwargs))
 
     def __getitem__(self, key):
         return self.store[key]()
 
     def __setitem__(self, key, value):
-        if value is not None and not callable(value):  # TODO: why None?
-            raise TypeError("`value` must be a generator function or None.")
+        if not callable(value):
+            msg = ("Values in a `LazyDict` must be generator functions."
+                   " These are functions which, when called, return an"
+                   " instantiated generator.")
+            raise TypeError(msg)
         self.store[key] = value
 
     def __delitem__(self, key):
@@ -217,9 +261,14 @@ class Tractogram(object):
 
     Streamlines of a tractogram can be in any coordinate system of your
     choice as long as you provide the correct `affine_to_rasmm` matrix, at
-    construction time, that brings the streamlines back to *RAS+*, *mm* space,
-    where the coordinates (0,0,0) corresponds to the center of the voxel
-    (as opposed to the corner of the voxel).
+    construction time. When applied to streamlines coordinates, that
+    transformation matrix should bring the streamlines back to world space
+    (RAS+ and mm space) [1]_.
+
+    Moreover, when streamlines are mapped back to voxel space [2]_, a
+    streamline point located at an integer coordinate (i,j,k) is considered
+    to be at the center of the corresponding voxel. This is in contrast with
+    other conventions where it might have referred to a corner.
 
     Attributes
     ----------
@@ -240,6 +289,11 @@ class Tractogram(object):
         ndarrays of shape ($N_t$, $M_i$) where $N_t$ is the number of points
         for a particular streamline $t$ and $M_i$ is the number values to store
         for that particular piece of information $i$.
+
+    References
+    ----------
+    [1] http://nipy.org/nibabel/coordinate_systems.html#naming-reference-spaces
+    [2] http://nipy.org/nibabel/coordinate_systems.html#voxel-coordinates-are-in-voxel-space
     """
     def __init__(self, streamlines=None,
                  data_per_streamline=None,
@@ -418,6 +472,40 @@ class Tractogram(object):
 
         return self.apply_affine(self.affine_to_rasmm, lazy=lazy)
 
+    def extend(self, other):
+        """ Appends the data of another :class:`Tractogram`.
+
+        Data that will be appended includes the streamlines and the content
+        of both dictionaries `data_per_streamline` and `data_per_point`.
+
+        Parameters
+        ----------
+        other : :class:`Tractogram` object
+            Its data will be appended to the data of this tractogram.
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        The entries in both dictionaries `self.data_per_streamline` and
+        `self.data_per_point` must match respectively those contained in
+        the other tractogram.
+        """
+        self.streamlines.extend(other.streamlines)
+        self.data_per_streamline.extend(other.data_per_streamline)
+        self.data_per_point.extend(other.data_per_point)
+
+    def __iadd__(self, other):
+        self.extend(other)
+        return self
+
+    def __add__(self, other):
+        tractogram = self.copy()
+        tractogram += other
+        return tractogram
+
 
 class LazyTractogram(Tractogram):
     """ Lazy container for streamlines and their data information.
@@ -426,11 +514,16 @@ class LazyTractogram(Tractogram):
     streamlines and their data information. This container is thus memory
     friendly since it doesn't require having all this data loaded in memory.
 
-    Streamlines of a lazy tractogram can be in any coordinate system of your
+    Streamlines of a tractogram can be in any coordinate system of your
     choice as long as you provide the correct `affine_to_rasmm` matrix, at
-    construction time, that brings the streamlines back to *RAS+*, *mm* space,
-    where the coordinates (0,0,0) corresponds to the center of the voxel
-    (as opposed to the corner of the voxel).
+    construction time. When applied to streamlines coordinates, that
+    transformation matrix should bring the streamlines back to world space
+    (RAS+ and mm space) [1]_.
+
+    Moreover, when streamlines are mapped back to voxel space [2]_, a
+    streamline point located at an integer coordinate (i,j,k) is considered
+    to be at the center of the corresponding voxel. This is in contrast with
+    other conventions where it might have referred to a corner.
 
     Attributes
     ----------
@@ -460,6 +553,11 @@ class LazyTractogram(Tractogram):
     LazyTractogram objects are suited for operations that can be linearized
     such as applying an affine transformation or converting streamlines from
     one file format to another.
+
+    References
+    ----------
+    [1] http://nipy.org/nibabel/coordinate_systems.html#naming-reference-spaces
+    [2] http://nipy.org/nibabel/coordinate_systems.html#voxel-coordinates-are-in-voxel-space
     """
     def __init__(self, streamlines=None,
                  data_per_streamline=None,
@@ -604,7 +702,10 @@ class LazyTractogram(Tractogram):
 
     def _set_streamlines(self, value):
         if value is not None and not callable(value):
-            raise TypeError("`streamlines` must be a generator function.")
+            msg = ("`streamlines` must be a generator function. That is a"
+                   " function which, when called, returns an instantiated"
+                   " generator.")
+            raise TypeError(msg)
         self._streamlines = value
 
     @property
@@ -652,6 +753,10 @@ class LazyTractogram(Tractogram):
 
     def __getitem__(self, idx):
         raise NotImplementedError('LazyTractogram does not support indexing.')
+
+    def extend(self, other):
+        msg = 'LazyTractogram does not support concatenation.'
+        raise NotImplementedError(msg)
 
     def __iter__(self):
         count = 0

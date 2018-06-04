@@ -37,7 +37,7 @@ class _BuildCache(object):
         self.common_shape = common_shape
         n_in_row = reduce(mul, common_shape, 1)
         bytes_per_row = n_in_row * dtype.itemsize
-        self.rows_per_buf = bytes_per_row / self.bytes_per_buf
+        self.rows_per_buf = max(1, self.bytes_per_buf // bytes_per_row)
 
     def update_seq(self, arr_seq):
         arr_seq._offsets = np.array(self.offsets)
@@ -126,7 +126,7 @@ class ArraySequence(object):
         parameters it uses between append operations, in a "build cache".  To
         tell append to do this, use ``cache_build=True``.  If you use
         ``cache_build=True``, you need to finalize the append operations with
-        :method:`finalize_append`.
+        :meth:`finalize_append`.
 
         Parameters
         ----------
@@ -175,16 +175,17 @@ class ArraySequence(object):
     def finalize_append(self):
         """ Finalize process of appending several elements to `self`
 
-        :method:`append` can be a lot faster if it knows that it is appending
+        :meth:`append` can be a lot faster if it knows that it is appending
         several elements instead of a single element.  To tell the append
         method this is the case, use ``cache_build=True``.  This method
         finalizes the series of append operations after a call to
-        :method:`append` with ``cache_build=True``.
+        :meth:`append` with ``cache_build=True``.
         """
         if self._build_cache is None:
             return
         self._build_cache.update_seq(self)
         self._build_cache = None
+        self.shrink_data()
 
     def _resize_data_to(self, n_rows, build_cache):
         """ Resize data array if required """
@@ -380,3 +381,31 @@ def create_arraysequences_from_generator(gen, n):
     for seq in seqs:
         seq.finalize_append()
     return seqs
+
+
+def concatenate(seqs, axis):
+    """ Concatenates multiple :class:`ArraySequence` objects along an axis.
+
+    Parameters
+    ----------
+    seqs: iterable of :class:`ArraySequence` objects
+        Sequences to concatenate.
+    axis : int
+        Axis along which the sequences will be concatenated.
+
+    Returns
+    -------
+    new_seq: :class:`ArraySequence` object
+        New :class:`ArraySequence` object which is the result of
+        concatenating multiple sequences along the given axis.
+    """
+    new_seq = seqs[0].copy()
+    if axis == 0:
+        # This is the same as an extend.
+        for seq in seqs[1:]:
+            new_seq.extend(seq)
+
+        return new_seq
+
+    new_seq._data = np.concatenate([seq._data for seq in seqs], axis=axis)
+    return new_seq

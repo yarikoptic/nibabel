@@ -133,14 +133,16 @@ work:
 
 '''
 
-import warnings
-
 import numpy as np
 
-from .filebasedimages import FileBasedHeader, FileBasedImage
+from .filebasedimages import FileBasedHeader
+from .dataobj_images import DataobjImage
 from .filebasedimages import ImageFileError  # flake8: noqa; for back-compat
 from .viewers import OrthoSlicer3D
 from .volumeutils import shape_zoom_affine
+from .fileslice import canonical_slicers
+from .deprecated import deprecate_with_version
+from .orientations import apply_orientation, inv_ornt_aff
 
 
 class HeaderDataError(Exception):
@@ -308,9 +310,11 @@ def supported_np_types(obj):
 class Header(SpatialHeader):
     '''Alias for SpatialHeader; kept for backwards compatibility.'''
 
+    @deprecate_with_version('Header class is deprecated.\n'
+                            'Please use SpatialHeader instead.'
+                            'instead.',
+                            '2.1', '4.0')
     def __init__(self, *args, **kwargs):
-        warnings.warn('Header is deprecated, use SpatialHeader',
-                      DeprecationWarning, stacklevel=2)
         super(Header, self).__init__(*args, **kwargs)
 
 
@@ -318,15 +322,109 @@ class ImageDataError(Exception):
     pass
 
 
-class SpatialImage(FileBasedImage):
+class SpatialFirstSlicer(object):
+    ''' Slicing interface that returns a new image with an updated affine
+
+    Checks that an image's first three axes are spatial
+    '''
+    def __init__(self, img):
+        # Local import to avoid circular import on module load
+        from .imageclasses import spatial_axes_first
+        if not spatial_axes_first(img):
+            raise ValueError("Cannot predict position of spatial axes for "
+                             "Image type " + img.__class__.__name__)
+        self.img = img
+
+    def __getitem__(self, slicer):
+        try:
+            slicer = self.check_slicing(slicer)
+        except ValueError as err:
+            raise IndexError(*err.args)
+
+        dataobj = self.img.dataobj[slicer]
+        if any(dim == 0 for dim in dataobj.shape):
+            raise IndexError("Empty slice requested")
+
+        affine = self.slice_affine(slicer)
+        return self.img.__class__(dataobj.copy(), affine, self.img.header)
+
+    def check_slicing(self, slicer, return_spatial=False):
+        ''' Canonicalize slicers and check for scalar indices in spatial dims
+
+        Parameters
+        ----------
+        slicer : object
+            something that can be used to slice an array as in
+            ``arr[sliceobj]``
+        return_spatial : bool
+            return only slices along spatial dimensions (x, y, z)
+
+        Returns
+        -------
+        slicer : object
+            Validated slicer object that will slice image's `dataobj`
+            without collapsing spatial dimensions
+        '''
+        slicer = canonical_slicers(slicer, self.img.shape)
+        # We can get away with this because we've checked the image's
+        # first three axes are spatial.
+        # More general slicers will need to be smarter, here.
+        spatial_slices = slicer[:3]
+        for subslicer in spatial_slices:
+            if subslicer is None:
+                raise IndexError("New axis not permitted in spatial dimensions")
+            elif isinstance(subslicer, int):
+                raise IndexError("Scalar indices disallowed in spatial dimensions; "
+                                 "Use `[x]` or `x:x+1`.")
+        return spatial_slices if return_spatial else slicer
+
+    def slice_affine(self, slicer):
+        """ Retrieve affine for current image, if sliced by a given index
+
+        Applies scaling if down-sampling is applied, and adjusts the intercept
+        to account for any cropping.
+
+        Parameters
+        ----------
+        slicer : object
+            something that can be used to slice an array as in
+            ``arr[sliceobj]``
+
+        Returns
+        -------
+        affine : (4,4) ndarray
+            Affine with updated scale and intercept
+        """
+        slicer = self.check_slicing(slicer, return_spatial=True)
+
+        # Transform:
+        # sx  0  0 tx
+        #  0 sy  0 ty
+        #  0  0 sz tz
+        #  0  0  0  1
+        transform = np.eye(4, dtype=int)
+
+        for i, subslicer in enumerate(slicer):
+            if isinstance(subslicer, slice):
+                if subslicer.step == 0:
+                    raise ValueError("slice step cannot be 0")
+                transform[i, i] = subslicer.step if subslicer.step is not None else 1
+                transform[i, 3] = subslicer.start or 0
+            # If slicer is None, nothing to do
+
+        return self.img.affine.dot(transform)
+
+
+class SpatialImage(DataobjImage):
     ''' Template class for volumetric (3D/4D) images '''
     header_class = SpatialHeader
+    ImageSlicer = SpatialFirstSlicer
 
     def __init__(self, dataobj, affine, header=None,
                  extra=None, file_map=None):
         ''' Initialize image
 
-        The image is a combination of (array, affine matrix, header), with
+        The image is a combination of (array-like, affine matrix, header), with
         optional metadata in `extra`, and filename / file-like objects
         contained in the `file_map` mapping.
 
@@ -349,10 +447,9 @@ class SpatialImage(FileBasedImage):
         file_map : mapping, optional
            mapping giving file information for this image format
         '''
-        super(SpatialImage, self).__init__(header=header, extra=extra,
+        super(SpatialImage, self).__init__(dataobj, header=header, extra=extra,
                                            file_map=file_map)
-        self._dataobj = dataobj
-        if not affine is None:
+        if affine is not None:
             # Check that affine is array-like 4,4.  Maybe this is too strict at
             # this abstract level, but so far I think all image formats we know
             # do need 4,4.
@@ -369,20 +466,7 @@ class SpatialImage(FileBasedImage):
                 self._header.set_data_dtype(dataobj.dtype)
         # make header correspond with image and affine
         self.update_header()
-        self._load_cache = None
         self._data_cache = None
-
-    @property
-    def _data(self):
-        warnings.warn('Please use ``dataobj`` instead of ``_data``; '
-                      'We will remove this wrapper for ``_data`` soon',
-                      FutureWarning,
-                      stacklevel=2)
-        return self._dataobj
-
-    @property
-    def dataobj(self):
-        return self._dataobj
 
     @property
     def affine(self):
@@ -410,7 +494,7 @@ class SpatialImage(FileBasedImage):
         if hdr.get_data_shape() != shape:
             hdr.set_data_shape(shape)
         # If the affine is not None, and it is different from the main affine
-        # in the header, update the heaader
+        # in the header, update the header
         if self._affine is None:
             return
         if np.allclose(self._affine, hdr.get_best_affine()):
@@ -437,202 +521,18 @@ class SpatialImage(FileBasedImage):
                           'metadata:',
                           '%s' % self._header))
 
-    def get_data(self, caching='fill'):
-        """ Return image data from image with any necessary scalng applied
-
-        The image ``dataobj`` property can be an array proxy or an array.  An
-        array proxy is an object that knows how to load the image data from
-        disk.  An image with an array proxy ``dataobj`` is a *proxy image*; an
-        image with an array in ``dataobj`` is an *array image*.
-
-        The default behavior for ``get_data()`` on a proxy image is to read the
-        data from the proxy, and store in an internal cache.  Future calls to
-        ``get_data`` will return the cached array.  This is the behavior
-        selected with `caching` == "fill".
-
-        Once the data has been cached and returned from an array proxy, if you
-        modify the returned array, you will also modify the cached array
-        (because they are the same array).  Regardless of the `caching` flag,
-        this is always true of an array image.
-
-        Parameters
-        ----------
-        caching : {'fill', 'unchanged'}, optional
-            See the Notes section for a detailed explanation.  This argument
-            specifies whether the image object should fill in an internal
-            cached reference to the returned image data array. "fill" specifies
-            that the image should fill an internal cached reference if
-            currently empty.  Future calls to ``get_data`` will return this
-            cached reference.  You might prefer "fill" to save the image object
-            from having to reload the array data from disk on each call to
-            ``get_data``.  "unchanged" means that the image should not fill in
-            the internal cached reference if the cache is currently empty.  You
-            might prefer "unchanged" to "fill" if you want to make sure that
-            the call to ``get_data`` does not create an extra (cached)
-            reference to the returned array.  In this case it is easier for
-            Python to free the memory from the returned array.
-
-        Returns
-        -------
-        data : array
-            array of image data
-
-        See also
-        --------
-        uncache: empty the array data cache
-
-        Notes
-        -----
-        All images have a property ``dataobj`` that represents the image array
-        data.  Images that have been loaded from files usually do not load the
-        array data from file immediately, in order to reduce image load time
-        and memory use.  For these images, ``dataobj`` is an *array proxy*; an
-        object that knows how to load the image array data from file.
-
-        By default (`caching` == "fill"), when you call ``get_data`` on a
-        proxy image, we load the array data from disk, store (cache) an
-        internal reference to this array data, and return the array.  The next
-        time you call ``get_data``, you will get the cached reference to the
-        array, so we don't have to load the array data from disk again.
-
-        Array images have a ``dataobj`` property that already refers to an
-        array in memory, so there is no benefit to caching, and the `caching`
-        keywords have no effect.
-
-        For proxy images, you may not want to fill the cache after reading the
-        data from disk because the cache will hold onto the array memory until
-        the image object is deleted, or you use the image ``uncache`` method.
-        If you don't want to fill the cache, then always use
-        ``get_data(caching='unchanged')``; in this case ``get_data`` will not
-        fill the cache (store the reference to the array) if the cache is empty
-        (no reference to the array).  If the cache is full, "unchanged" leaves
-        the cache full and returns the cached array reference.
-
-        The cache can effect the behavior of the image, because if the cache is
-        full, or you have an array image, then modifying the returned array
-        will modify the result of future calls to ``get_data()``.  For example
-        you might do this:
-
-        >>> import os
-        >>> import nibabel as nib
-        >>> from nibabel.testing import data_path
-        >>> img_fname = os.path.join(data_path, 'example4d.nii.gz')
-
-        >>> img = nib.load(img_fname) # This is a proxy image
-        >>> nib.is_proxy(img.dataobj)
-        True
-
-        The array is not yet cached by a call to "get_data", so:
-
-        >>> img.in_memory
-        False
-
-        After we call ``get_data`` using the default `caching` == 'fill', the
-        cache contains a reference to the returned array ``data``:
-
-        >>> data = img.get_data()
-        >>> img.in_memory
-        True
-
-        We modify an element in the returned data array:
-
-        >>> data[0, 0, 0, 0]
-        0
-        >>> data[0, 0, 0, 0] = 99
-        >>> data[0, 0, 0, 0]
-        99
-
-        The next time we call 'get_data', the method returns the cached
-        reference to the (modified) array:
-
-        >>> data_again = img.get_data()
-        >>> data_again is data
-        True
-        >>> data_again[0, 0, 0, 0]
-        99
-
-        If you had *initially* used `caching` == 'unchanged' then the returned
-        ``data`` array would have been loaded from file, but not cached, and:
-
-        >>> img = nib.load(img_fname)  # a proxy image again
-        >>> data = img.get_data(caching='unchanged')
-        >>> img.in_memory
-        False
-        >>> data[0, 0, 0] = 99
-        >>> data_again = img.get_data(caching='unchanged')
-        >>> data_again is data
-        False
-        >>> data_again[0, 0, 0, 0]
-        0
-        """
-        if caching not in ('fill', 'unchanged'):
-            raise ValueError('caching value should be "fill" or "unchanged"')
-        if self._data_cache is not None:
-            return self._data_cache
-        data = np.asanyarray(self._dataobj)
-        if caching == 'fill':
-            self._data_cache = data
-        return data
-
-    @property
-    def in_memory(self):
-        """ True when array data is in memory
-        """
-        return (isinstance(self._dataobj, np.ndarray)
-                or self._data_cache is not None)
-
-    def uncache(self):
-        """ Delete any cached read of data from proxied data
-
-        Remember there are two types of images:
-
-        * *array images* where the data ``img.dataobj`` is an array
-        * *proxy images* where the data ``img.dataobj`` is a proxy object
-
-        If you call ``img.get_data()`` on a proxy image, the result of reading
-        from the proxy gets cached inside the image object, and this cache is
-        what gets returned from the next call to ``img.get_data()``.  If you
-        modify the returned data, as in::
-
-            data = img.get_data()
-            data[:] = 42
-
-        then the next call to ``img.get_data()`` returns the modified array,
-        whether the image is an array image or a proxy image::
-
-            assert np.all(img.get_data() == 42)
-
-        When you uncache an array image, this has no effect on the return of
-        ``img.get_data()``, but when you uncache a proxy image, the result of
-        ``img.get_data()`` returns to its original value.
-        """
-        self._data_cache = None
-
-    @property
-    def shape(self):
-        return self._dataobj.shape
-
-    def get_shape(self):
-        """ Return shape for image
-
-        This function deprecated; please use the ``shape`` property instead
-        """
-        warnings.warn('Please use the shape property instead of get_shape',
-                      DeprecationWarning,
-                      stacklevel=2)
-        return self.shape
-
     def get_data_dtype(self):
         return self._header.get_data_dtype()
 
     def set_data_dtype(self, dtype):
         self._header.set_data_dtype(dtype)
 
+    @deprecate_with_version('get_affine method is deprecated.\n'
+                            'Please use the ``img.affine`` property '
+                            'instead.',
+                            '2.1', '4.0')
     def get_affine(self):
         """ Get affine from image
-
-        Please use the `affine` property instead of `get_affine`; we will
-        deprecate this method in future versions of nibabel.
         """
         return self.affine
 
@@ -656,12 +556,38 @@ class SpatialImage(FileBasedImage):
                      klass.header_class.from_header(img.header),
                      extra=img.extra.copy())
 
-    def __getitem__(self):
+    @property
+    def slicer(self):
+        """ Slicer object that returns cropped and subsampled images
+
+        The image is resliced in the current orientation; no rotation or
+        resampling is performed, and no attempt is made to filter the image
+        to avoid `aliasing`_.
+
+        The affine matrix is updated with the new intercept (and scales, if
+        down-sampling is used), so that all values are found at the same RAS
+        locations.
+
+        Slicing may include non-spatial dimensions.
+        However, this method does not currently adjust the repetition time in
+        the image header.
+
+        .. _aliasing: https://en.wikipedia.org/wiki/Aliasing
+        """
+        return self.ImageSlicer(self)
+
+
+    def __getitem__(self, idx):
         ''' No slicing or dictionary interface for images
+
+        Use the slicer attribute to perform cropping and subsampling at your
+        own risk.
         '''
-        raise TypeError("Cannot slice image objects; consider slicing image "
-                        "array data with `img.dataobj[slice]` or "
-                        "`img.get_data()[slice]`")
+        raise TypeError(
+            "Cannot slice image objects; consider using `img.slicer[slice]` "
+            "to generate a sliced image (see documentation for caveats) or "
+            "slicing image array data with `img.dataobj[slice]` or "
+            "`img.get_data()[slice]`")
 
     def orthoview(self):
         """Plot the image using OrthoSlicer3D
@@ -679,3 +605,34 @@ class SpatialImage(FileBasedImage):
         """
         return OrthoSlicer3D(self.dataobj, self.affine,
                              title=self.get_filename())
+
+
+    def as_reoriented(self, ornt):
+        """Apply an orientation change and return a new image
+
+        If ornt is identity transform, return the original image, unchanged
+
+        Parameters
+        ----------
+        ornt : (n,2) orientation array
+           orientation transform. ``ornt[N,1]` is flip of axis N of the
+           array implied by `shape`, where 1 means no flip and -1 means
+           flip.  For example, if ``N==0`` and ``ornt[0,1] == -1``, and
+           there's an array ``arr`` of shape `shape`, the flip would
+           correspond to the effect of ``np.flipud(arr)``.  ``ornt[:,0]`` is
+           the transpose that needs to be done to the implied array, as in
+           ``arr.transpose(ornt[:,0])``
+
+        Notes
+        -----
+        Subclasses should override this if they have additional requirements
+        when re-orienting an image.
+        """
+
+        if np.array_equal(ornt, [[0, 1], [1, 1], [2, 1]]):
+            return self
+
+        t_arr = apply_orientation(self.get_data(), ornt)
+        new_aff = self.affine.dot(inv_ornt_aff(ornt, self.shape))
+
+        return self.__class__(t_arr, new_aff, self.header)

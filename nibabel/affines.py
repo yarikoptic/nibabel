@@ -5,7 +5,8 @@
 
 import numpy as np
 
-from .externals.six.moves import reduce
+from six.moves import reduce
+from .testing import setup_test  # flake8: noqa F401
 
 
 class AffineError(ValueError):

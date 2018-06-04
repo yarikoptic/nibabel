@@ -35,13 +35,13 @@ __all__ = ['netcdf_file']
 from operator import mul
 from mmap import mmap, ACCESS_READ
 
-import numpy as np
+import numpy as np  # noqa
 from ..py3k import asbytes, asstr
 from numpy import fromstring, ndarray, dtype, empty, array, asarray
 from numpy import little_endian as LITTLE_ENDIAN
 from functools import reduce
 
-from .six import integer_types
+from six import integer_types
 
 
 ABSENT = b'\x00\x00\x00\x00\x00\x00\x00\x00'
@@ -210,6 +210,14 @@ class netcdf_file(object):
             self.fp = open(self.filename, '%sb' % mode)
             if mmap is None:
                 mmap = True
+        try:
+            self.fp.seek(0, 2)
+        except ValueError:
+            self.file_bytes = -1 # Unknown file length (gzip).
+        else:
+            self.file_bytes = self.fp.tell()
+            self.fp.seek(0)
+
         self.use_mmap = mmap
         self.version_byte = version
 
@@ -599,14 +607,22 @@ class netcdf_file(object):
             else:  # not a record variable
                 # Calculate size to avoid problems with vsize (above)
                 a_size = reduce(mul, shape, 1) * size
-                if self.use_mmap:
+                if self.file_bytes >= 0 and begin_ + a_size > self.file_bytes:
+                    data = fromstring(b'\x00'*a_size, dtype=dtype_)
+                elif self.use_mmap:
                     mm = mmap(self.fp.fileno(), begin_+a_size, access=ACCESS_READ)
                     data = ndarray.__new__(ndarray, shape, dtype=dtype_,
                             buffer=mm, offset=begin_, order=0)
                 else:
                     pos = self.fp.tell()
                     self.fp.seek(begin_)
-                    data = fromstring(self.fp.read(a_size), dtype=dtype_)
+                    # Try to read file, which may fail because the data is
+                    # at or past the end of file. In that case, we treat
+                    # this data as zeros.
+                    buf = self.fp.read(a_size)
+                    if len(buf) < a_size:
+                        buf = b'\x00'*a_size
+                    data = fromstring(buf, dtype=dtype_)
                     data.shape = shape
                     self.fp.seek(pos)
 

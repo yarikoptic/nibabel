@@ -12,13 +12,15 @@ import os
 import warnings
 import struct
 
+import six
+
 import numpy as np
 
 from nibabel import nifti1 as nifti1
 from nibabel.affines import from_matvec
 from nibabel.casting import type_info, have_binary128
 from nibabel.eulerangles import euler2mat
-from nibabel.externals.six import BytesIO
+from io import BytesIO
 from nibabel.nifti1 import (load, Nifti1Header, Nifti1PairHeader, Nifti1Image,
                             Nifti1Pair, Nifti1Extension, Nifti1DicomExtension,
                             Nifti1Extensions, data_type_codes, extension_codes,
@@ -116,7 +118,7 @@ class TestNifti1PairHeader(tana.TestAnalyzeHeader, tspm.HeaderScalingMixin):
 
     def test_big_scaling(self):
         # Test that upcasting works for huge scalefactors
-        # See tests for apply_read_scaling in test_utils
+        # See tests for apply_read_scaling in test_volumeutils
         hdr = self.header_class()
         hdr.set_data_shape((2, 1, 1))
         hdr.set_data_dtype(np.int16)
@@ -186,17 +188,25 @@ class TestNifti1PairHeader(tana.TestAnalyzeHeader, tspm.HeaderScalingMixin):
             assert_array_equal([hdr['scl_slope'], hdr['scl_inter']],
                                raw_values)
 
-    def test_nifti_qsform_checks(self):
-        # qfac, qform, sform checks
-        # qfac
-        HC = self.header_class
-        hdr = HC()
+    def test_nifti_qfac_checks(self):
+        # Test qfac is 1 or -1
+        hdr = self.header_class()
+        # 1, -1 OK
+        hdr['pixdim'][0] = 1
+        self.log_chk(hdr, 0)
+        hdr['pixdim'][0] = -1
+        self.log_chk(hdr, 0)
+        # 0 is not
         hdr['pixdim'][0] = 0
         fhdr, message, raiser = self.log_chk(hdr, 20)
         assert_equal(fhdr['pixdim'][0], 1)
         assert_equal(message,
                      'pixdim[0] (qfac) should be 1 '
                      '(default) or -1; setting qfac to 1')
+
+    def test_nifti_qsform_checks(self):
+        # qform, sform checks
+        HC = self.header_class
         # qform, sform
         hdr = HC()
         hdr['qform_code'] = -1
@@ -357,7 +367,9 @@ class TestNifti1PairHeader(tana.TestAnalyzeHeader, tspm.HeaderScalingMixin):
         another_aff = np.diag([3, 4, 5, 1])
         # Affine with shears
         nasty_aff = from_matvec(np.arange(9).reshape((3, 3)), [9, 10, 11])
+        nasty_aff[0, 0] = 1  # Make full rank
         fixed_aff = unshear_44(nasty_aff)
+        assert_false(np.allclose(fixed_aff, nasty_aff))
         for in_meth, out_meth in ((hdr.set_qform, hdr.get_qform),
                                   (hdr.set_sform, hdr.get_sform)):
             in_meth(nice_aff, 2)
@@ -551,8 +563,12 @@ class TestNifti1PairHeader(tana.TestAnalyzeHeader, tspm.HeaderScalingMixin):
         ehdr.set_intent('t test', (10,), name='some score')
         assert_equal(ehdr.get_intent(),
                      ('t test', (10.0,), 'some score'))
-        # invalid intent name
+        # unknown intent name or code - unknown name will fail even when
+        # allow_unknown=True
         assert_raises(KeyError, ehdr.set_intent, 'no intention')
+        assert_raises(KeyError, ehdr.set_intent, 'no intention',
+                      allow_unknown=True)
+        assert_raises(KeyError, ehdr.set_intent, 32767)
         # too many parameters
         assert_raises(HeaderDataError, ehdr.set_intent, 't test', (10, 10))
         # too few parameters
@@ -564,6 +580,24 @@ class TestNifti1PairHeader(tana.TestAnalyzeHeader, tspm.HeaderScalingMixin):
         assert_equal(ehdr['intent_name'], b'')
         ehdr.set_intent('t test', (10,))
         assert_equal((ehdr['intent_p2'], ehdr['intent_p3']), (0, 0))
+        # store intent that is not in nifti1.intent_codes recoder
+        ehdr.set_intent(9999, allow_unknown=True)
+        assert_equal(ehdr.get_intent(), ('unknown code 9999', (), ''))
+        assert_equal(ehdr.get_intent('code'), (9999, (), ''))
+        ehdr.set_intent(9999, name='custom intent', allow_unknown=True)
+        assert_equal(ehdr.get_intent(),
+                     ('unknown code 9999', (), 'custom intent'))
+        assert_equal(ehdr.get_intent('code'), (9999, (), 'custom intent'))
+        # store unknown intent with parameters. set_intent will set the
+        # parameters, but get_intent won't return them
+        ehdr.set_intent(code=9999, params=(1, 2, 3), allow_unknown=True)
+        assert_equal(ehdr.get_intent(), ('unknown code 9999', (), ''))
+        assert_equal(ehdr.get_intent('code'), (9999, (), ''))
+        # unknown intent requires either zero, or three, parameters
+        assert_raises(HeaderDataError, ehdr.set_intent, 999, (1,),
+                      allow_unknown=True)
+        assert_raises(HeaderDataError, ehdr.set_intent, 999, (1,2),
+                      allow_unknown=True)
 
     def test_set_slice_times(self):
         hdr = self.header_class()
@@ -868,6 +902,23 @@ class TestNifti1Pair(tana.TestAnalyzeImage, tspm.ImageScalingMixin):
         img.set_sform(new_affine, 2)
         assert_array_almost_equal(img.affine, new_affine)
 
+    def test_sqform_code_type(self):
+        # make sure get_s/qform returns codes as integers
+        img = self.image_class(np.zeros((2, 3, 4)), None)
+        assert isinstance(img.get_sform(coded=True)[1], six.integer_types)
+        assert isinstance(img.get_qform(coded=True)[1], six.integer_types)
+        img.set_sform(None, 3)
+        img.set_qform(None, 3)
+        assert isinstance(img.get_sform(coded=True)[1], six.integer_types)
+        assert isinstance(img.get_qform(coded=True)[1], six.integer_types)
+        img.set_sform(None, 2.0)
+        img.set_qform(None, 4.0)
+        assert isinstance(img.get_sform(coded=True)[1], six.integer_types)
+        assert isinstance(img.get_qform(coded=True)[1], six.integer_types)
+        img.set_sform(None, img.get_sform(coded=True)[1])
+        img.set_qform(None, img.get_qform(coded=True)[1])
+
+
     def test_hdr_diff(self):
         # Check an offset beyond data does not raise an error
         img = self.image_class(np.zeros((2, 3, 4)), np.eye(4))
@@ -1024,6 +1075,9 @@ def test_extension_basics():
     assert_true(ext.get_sizeondisk() == 16)
     assert_true(ext.get_content() == raw)
     assert_true(ext.get_code() == 6)
+    # Test that extensions already aligned to 16 bytes are not padded
+    ext = Nifti1Extension('comment', b'x' * 24)
+    assert_true(ext.get_sizeondisk() == 32)
 
 
 def test_ext_eq():
