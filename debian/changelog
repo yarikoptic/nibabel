@@ -1,3 +1,9 @@
+nibabel (2.3.0~a1+git235-gc644d808-1) neurodebian-devel; urgency=medium
+
+  * New upstream snapshot from 2.2.1-235-gc644d808 (pre-2.3.0 release)
+
+ -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 04 Jun 2018 09:01:13 -0400
+
 nibabel (2.2.1-2) unstable; urgency=medium
 
   * debian/control
