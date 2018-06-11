@@ -1,9 +1,9 @@
-nibabel (2.3.0~a1+git235-gc644d808-2) UNRELEASED; urgency=medium
+nibabel (2.3.0~a1+git261-g12da3be2-1) neurodebian-devel; urgency=medium
 
   * Added PR614 patch for testing
     https://patch-diff.githubusercontent.com/raw/nipy/nibabel/pull/614.patch
 
- -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 04 Jun 2018 18:24:19 -0400
+ -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 11 Jun 2018 14:17:54 -0400
 
 nibabel (2.3.0~a1+git235-gc644d808-1) neurodebian-devel; urgency=medium
 
