@@ -45,6 +45,8 @@ Enhancements
   by CM, MB)
 * Accept degenerate filenames such as ``.nii`` (pr/621) (Dimitri
   Papadopoulos-Orfanos, reviewed by Yaroslav Halchenko)
+* Take advantage of ``IndexedGzipFile`` ``drop_handles`` flag to release
+  filehandles by default (pr/614) (Paul McCarthy, reviewed by CM, MB)
 
 Bug fixes
 ---------
@@ -61,6 +63,8 @@ Bug fixes
   reviewed by MB, CM)
 * Do not crash on non-``ImportError`` failures in optional imports (pr/618)
   (Yaroslav Halchenko, reviewed by CM)
+* Return original array from ``get_fdata`` for array image, if no cast
+  required (pr/638, MB, reviewed by CM)
 
 Maintenance
 -----------
@@ -72,9 +76,16 @@ Maintenance
 * Move ``nib-ls`` and other programs to a new cmdline module (pr/601, pr/615)
   (Chris Cheng, reviewed by MB, Yaroslav Halchenko)
 * Remove deprecated numpy indexing (EL, reviewed by CM)
+* Update documentation to encourage ``get_fdata`` over ``get_data`` (pr/637,
+  MB, reviewed by CM)
 
 API changes and deprecations
 ----------------------------
+* Support for ``keep_file_open = 'auto'`` as a parameter to ``Opener()`` will
+  be deprecated in 2.4, for removal in 3.0. Accordingly, support for
+  ``openers.KEEP_FILE_OPEN_DEFAULT = 'auto'`` will be dropped on the same
+  schedule.
+* Drop-in support for ``indexed_gzip < 0.7`` has been removed.
 
 
 2.2.1 (Wednesday 22 November 2017)
