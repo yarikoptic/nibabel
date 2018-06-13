@@ -1,8 +1,8 @@
-nibabel (2.3.0~a1+git261-g12da3be2-1) neurodebian-devel; urgency=medium
+nibabel (2.3.0-1) unstable; urgency=medium
 
-  * Fresh prerelease snapshot
+  * Fresh upstream release
 
- -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 11 Jun 2018 14:17:54 -0400
+ -- Yaroslav Halchenko <debian@onerussian.com>  Wed, 13 Jun 2018 08:45:41 -0700
 
 nibabel (2.3.0~a1+git235-gc644d808-1) neurodebian-devel; urgency=medium
 
