@@ -1,3 +1,9 @@
+nibabel (2.3.0+git118-ge493b9dd-1) UNRELEASED; urgency=medium
+
+  * New upstream snapshot from 2.3.0-121-ge493b9dd
+
+ -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 01 Oct 2018 12:14:47 -0400
+
 nibabel (2.3.0-1) unstable; urgency=medium
 
   * Fresh upstream release
