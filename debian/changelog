@@ -5,6 +5,8 @@ nibabel (2.3.0+git120-g13d803f6-1) UNRELEASED; urgency=medium
     + python{,3}-hypothesis (>= 3.7) to Build-Depends and Suggests
     * unify Suggests and Recommends between python{3,}-nibabel pkgs:
       - docs and test helpers are in Suggests, the rest in Recommends  
+    + python{,3}-attr as b-depends since hypothesis needs it but pkg
+      forgot to declare the dependency
 
  -- Yaroslav Halchenko <debian@onerussian.com>  Wed, 03 Oct 2018 09:21:40 -0400
 
