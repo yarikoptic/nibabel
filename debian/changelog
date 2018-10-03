@@ -1,12 +1,12 @@
-nibabel (2.3.0+git118-ge493b9dd-2) UNRELEASED; urgency=medium
+nibabel (2.3.0+git120-g13d803f6-1) UNRELEASED; urgency=medium
 
-  * New upstream snapshot from 2.3.0-121-ge493b9dd
+  * New upstream snapshot from 2.2.1-385-g13d803f6
   * debian/control
-    + python{,3}-hypothesis to Build-Depends and Suggests
+    + python{,3}-hypothesis (>= 3.7) to Build-Depends and Suggests
     * unify Suggests and Recommends between python{3,}-nibabel pkgs:
       - docs and test helpers are in Suggests, the rest in Recommends  
 
- -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 01 Oct 2018 13:17:13 -0400
+ -- Yaroslav Halchenko <debian@onerussian.com>  Wed, 03 Oct 2018 09:21:40 -0400
 
 nibabel (2.3.0-1) unstable; urgency=medium
 
