@@ -1,4 +1,4 @@
-nibabel (2.3.0+git146-g679aa5b0-1) unstable; urgency=medium
+nibabel (2.3.0+git182-ge9731507-1) unstable; urgency=medium
 
   * New upstream snapshot from 2.3.0-146-g679aa5b0 merged with rel/2.3.1
   * debian/control
