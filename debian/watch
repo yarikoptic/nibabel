@@ -1,4 +1,8 @@
-# Compulsory line, this is a version 3 file
-version=3
-opts=filenamemangle=s/.+\/v?(.*)\.tar\.gz/nibabel-$1.tar.gz/ \
-  https://github.com/nipy/nibabel/tags .*/v?(\d[\d\.]+)\.tar\.gz
+version=4
+
+# If latest head should be packaged
+opts="mode=git,pretty=2.3.0+git%cd.%h" \
+    https://github.com/nipy/nibabel.git HEAD
+
+# When sticking to release tags use this line
+# https://github.com/nipy/nibabel/releases .*/archive/v?@ANY_VERSION@@ARCHIVE_EXT@

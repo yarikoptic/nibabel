@@ -1,11 +1,18 @@
-nibabel (2.3.0+git182-ge9731507-1) unstable; urgency=medium
+nibabel (2.3.0+git20181012.791678e-1) UNRELEASED; urgency=medium
 
+  * Team upload
+
+  [ Yaroslav Halchenko ]
   * New upstream snapshot from 2.3.0-146-g679aa5b0 merged with rel/2.3.1
   * debian/control
     * unify Suggests and Recommends between python{3,}-nibabel pkgs:
       - docs and test helpers are in Suggests, the rest in Recommends  
 
- -- Yaroslav Halchenko <debian@onerussian.com>  Thu, 11 Oct 2018 20:51:22 -0400
+  [ Andreas Tille ]
+  * debian/gbp.conf: Renamed packaging branch to Debian
+  * d/watch: use git mode
+
+ -- Andreas Tille <tille@debian.org>  Sun, 14 Oct 2018 07:38:31 +0200
 
 nibabel (2.3.0-1) unstable; urgency=medium
 
