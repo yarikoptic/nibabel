@@ -1,6 +1,8 @@
 #!/usr/bin/make -f
 # -*- mode: makefile; coding: utf-8 -*-
 
+export PYBUILD_NAME=nibabel
+
 PYVERS = $(shell pyversions -vr)
 PYVER = $(shell pyversions -vd)
 PY3VERS = $(shell py3versions -vr)
@@ -14,13 +16,14 @@ export MPLCONFIGDIR=$(CURDIR)/build
 
 # one ring to rule them all ...
 %:
-# need to enforce distutils, since we also have a makefile
-	dh $@ --buildsystem=python_distutils --builddirectory=build --with=python2,python3
+	dh $@ --buildsystem=pybuild --with python2,python3
 
 override_dh_auto_build:
 	dh_auto_build
 	# and docs
-	$(MAKE) htmldoc
+	## $(MAKE) htmldoc
+	export PYTHONPATH=`pybuild --print build_dir --interpreter python3` ; \
+	cd doc && $(MAKE) html-only
 	# but remove jquery copy (later on link to Debian's version)
 	-rm build/html/_static/jquery.js
 	# objects inventory is of no use for the package

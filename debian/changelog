@@ -18,6 +18,7 @@ nibabel (2.3.0+git20181012.791678e-1) UNRELEASED; urgency=medium
   * Build-Depends: dh-python
   * Remove obsolete debian/pycompat
   * Remove unneeded paragraph from d/copyright
+  * buildsystem=pybuild (otherwise failures to create doc)
 
  -- Andreas Tille <tille@debian.org>  Sun, 14 Oct 2018 07:38:31 +0200
 
