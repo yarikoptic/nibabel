@@ -1,27 +1,47 @@
 Source: nibabel
-Section: python
-Priority: extra
 Maintainer: NeuroDebian Team <team@neuro.debian.net>
-Uploaders: Michael Hanke <michael.hanke@gmail.com>, Yaroslav Halchenko <debian@onerussian.com>
+Uploaders: Michael Hanke <michael.hanke@gmail.com>,
+           Yaroslav Halchenko <debian@onerussian.com>
+Section: python
+Testsuite: autopkgtest
+Priority: optional
 Build-Depends: debhelper (>= 10~),
-               python-all (>= 2.5),  python-numpy (>= 1.2),  python-scipy,  python-nose,  python-six, python-fuse,
-               python3-all,          python3-numpy (>= 1.2), python3-scipy, python3-nose, python3-six,
-               help2man, python-sphinx, python-matplotlib, libjs-mathjax,
-               python-mock, python3-mock,
+               python-all,
+               python-numpy,
+               python-scipy,
+               python-nose,
+               python-six,
+               python-fuse,
+               python3-all,
+               python3-numpy,
+               python3-scipy,
+               python3-nose,
+               python3-six,
+               help2man,
+               python-sphinx,
+               python-matplotlib,
+               libjs-mathjax,
+               python-mock,
+               python3-mock,
                python-numpydoc
-Standards-Version: 3.9.8
-Homepage: http://nipy.sourceforge.net/nibabel
+Standards-Version: 4.2.1
 Vcs-Browser: https://salsa.debian.org/neurodebian-team/pynifti
 Vcs-Git: https://salsa.debian.org/neurodebian-team/pynifti.git -b dist/debian/proper
+Homepage: http://nipy.sourceforge.net/nibabel
 X-Python-Version: >= 2.5
 X-Python3-Version: >= 3.2
-XS-Testsuite: autopkgtest
 
 Package: python-nibabel
 Architecture: all
-Depends: ${misc:Depends}, ${python:Depends}, python-numpy, python-scipy, python-six
-Recommends: python-dicom, python-fuse
-Suggests: python-nibabel-doc, python-mock,
+Depends: ${misc:Depends},
+         ${python:Depends},
+         python-numpy,
+         python-scipy,
+         python-six
+Recommends: python-dicom,
+            python-fuse
+Suggests: python-nibabel-doc,
+          python-mock
 Description: Python bindings to various neuroimaging data formats
  NiBabel provides read and write access to some common medical and
  neuroimaging file formats, including: ANALYZE (plain, SPM99, SPM2), GIFTI,
@@ -37,9 +57,15 @@ Description: Python bindings to various neuroimaging data formats
 
 Package: python3-nibabel
 Architecture: all
-Depends: ${misc:Depends}, ${python3:Depends}, python3-numpy, python3-scipy, python3-six
-Recommends: python3-dicom, python3-fuse,
-Suggests: python-nibabel-doc, python3-mock,
+Depends: ${misc:Depends},
+         ${python3:Depends},
+         python3-numpy,
+         python3-scipy,
+         python3-six
+Recommends: python3-dicom,
+            python3-fuse
+Suggests: python-nibabel-doc,
+          python3-mock
 Description: Python3 bindings to various neuroimaging data formats
  NiBabel provides read and write access to some common medical and
  neuroimaging file formats, including: ANALYZE (plain, SPM99, SPM2), GIFTI,
@@ -47,11 +73,12 @@ Description: Python3 bindings to various neuroimaging data formats
  or selective access to header (meta) information and access to the image data
  is made available via NumPy arrays.  NiBabel is the successor of PyNIfTI.
 
-
 Package: python-nibabel-doc
-Section: doc
 Architecture: all
-Depends: ${misc:Depends}, libjs-jquery, libjs-mathjax
+Section: doc
+Depends: ${misc:Depends},
+         libjs-jquery,
+         libjs-mathjax
 Description: documentation for NiBabel
  NiBabel provides read and write access to some common medical and
  neuroimaging file formats, including: ANALYZE (plain, SPM99, SPM2), GIFTI,
