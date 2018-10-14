@@ -5,6 +5,7 @@ Uploaders: Michael Hanke <michael.hanke@gmail.com>,
 Section: python
 Priority: optional
 Build-Depends: debhelper (>= 10~),
+               dh-python,
                python-all,
                python-numpy,
                python-scipy,
