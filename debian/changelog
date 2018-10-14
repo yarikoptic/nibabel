@@ -14,6 +14,7 @@ nibabel (2.3.0+git20181012.791678e-1) UNRELEASED; urgency=medium
   * debhelper 10
   * Standards-Version: 4.2.1
   * cme fix dpkg-control
+  * Remove ancient X-Python*-Version fields
 
  -- Andreas Tille <tille@debian.org>  Sun, 14 Oct 2018 07:38:31 +0200
 
