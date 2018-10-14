@@ -11,6 +11,7 @@ nibabel (2.3.0+git20181012.791678e-1) UNRELEASED; urgency=medium
   [ Andreas Tille ]
   * debian/gbp.conf: Renamed packaging branch to Debian
   * d/watch: use git mode
+  * debhelper 10
 
  -- Andreas Tille <tille@debian.org>  Sun, 14 Oct 2018 07:38:31 +0200
 
