@@ -24,18 +24,20 @@ Gerhard (SG), Eric Larson (EL), Yaroslav Halchenko (YOH) and Chris Cheng (CC).
 
 References like "pr/298" refer to github pull request numbers.
 
-Upcoming release
-================
+2.3.1 (Tuesday 16 October 2018)
+===============================
 
 New features
 ------------
-* ``nib-diff`` command line tool for comparing image files (pr/617)
-  (CC, reviewed by YOH, Pradeep Raamana and CM)
+* ``nib-diff`` command line tool for comparing image files (pr/617, pr/672,
+  pr/678) (CC, reviewed by YOH, Pradeep Raamana and CM)
 
 Enhancements
 ------------
 * Speed up reading of numeric arrays in CIFTI2 (pr/655) (Michiel Cottaar,
   reviewed by CM)
+* Add ``ndim`` property to ``ArrayProxy`` and ``DataobjImage`` (pr/674) (CM,
+  reviewed by MB)
 
 Bug fixes
 ---------
@@ -45,6 +47,8 @@ Bug fixes
 * Allow for PPC64 little-endian long doubles (pr/658) (MB, reviewed by CM)
 * Correct construction of FreeSurfer annotation labels (pr/666) (CM, reviewed
   by EL, Paul D. McCarthy)
+* Fix logic for persisting filehandles with indexed-gzip (pr/679) (Paul D.
+  McCarthy, reviewed by CM)
 
 Maintenance
 -----------
@@ -52,9 +56,6 @@ Maintenance
   Rokem, reviewed by CM, MB)
 * Test on Python 3.7, minor associated fixes (pr/651) (CM, reviewed by Gregory
   R. Lee, MB)
-
-API changes and deprecations
-----------------------------
 
 2.3 (Tuesday 12 June 2018)
 ==========================
