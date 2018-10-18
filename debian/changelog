@@ -1,11 +1,12 @@
-nibabel (2.3.0+git432-g58418066-1) unstable; urgency=medium
+nibabel (2.3.1-1) unstable; urgency=medium
 
-  * New upstream snapshot from 2.2.1-432-g58418066 merged with rel/2.3.1
+  * Fresh upstream release
+    - should address failures in examples (Closes: #909990)
   * debian/control
     * unify Suggests and Recommends between python{3,}-nibabel pkgs:
       - docs and test helpers are in Suggests, the rest in Recommends  
 
- -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 15 Oct 2018 15:10:59 -0400
+ -- Yaroslav Halchenko <debian@onerussian.com>  Wed, 17 Oct 2018 23:45:47 -0400
 
 nibabel (2.3.0-1) unstable; urgency=medium
 
