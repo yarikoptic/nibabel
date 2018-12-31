@@ -6,6 +6,8 @@ nibabel (2.3.1+git39-g41f28391-1) unstable; urgency=medium
       causing " cannot set WRITEABLE flag to True ..." (Closes: #917680)
   * debian/control
     - added (build-)depends on python-bz2file (python2 only)
+    - build-depend on dh-python
+    - remove obsolete X-*-Python fields
 
  -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 31 Dec 2018 11:26:19 -0500
 
