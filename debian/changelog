@@ -4,6 +4,8 @@ nibabel (2.3.1+git39-g41f28391-1) unstable; urgency=medium
     https://github.com/nipy/nibabel/pull/700
     - should resolve incompatibilities with recent release of numpy
       causing " cannot set WRITEABLE flag to True ..." (Closes: #917680)
+  * debian/control
+    - added (build-)depends on python-bz2file (python2 only)
 
  -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 31 Dec 2018 11:26:19 -0500
 
