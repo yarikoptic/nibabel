@@ -5,9 +5,11 @@ nibabel (2.3.1+git51-g1ea7c30f-1) unstable; urgency=medium
     - should resolve incompatibilities with recent release of numpy
       causing " cannot set WRITEABLE flag to True ..." (Closes: #917680)
   * debian/control
-    - added (build-)depends on python-bz2file (python2 only)
-    - build-depend on dh-python
+    + added (build-)depends on python-bz2file (python2 only)
+    + build-depend on dh-python
     - remove obsolete X-*-Python fields
+    + b-depend on python{3,}-setuptools since used now, and not pulled
+      through depends on older Debian/Ubuntus
 
  -- Yaroslav Halchenko <debian@onerussian.com>  Tue, 01 Jan 2019 19:53:57 -0500
 
