@@ -1,7 +1,7 @@
-nibabel (2.3.1+git39-g41f28391-1) unstable; urgency=medium
+nibabel (2.3.1+git51-g1ea7c30f-1) unstable; urgency=medium
 
-  * Fresh upstream snapshot from a to be merged PR
-    https://github.com/nipy/nibabel/pull/700
+  * Fresh upstream snapshot from rel/2.3.2 branch
+    https://github.com/nipy/nibabel/pull/708
     - should resolve incompatibilities with recent release of numpy
       causing " cannot set WRITEABLE flag to True ..." (Closes: #917680)
   * debian/control
@@ -9,7 +9,7 @@ nibabel (2.3.1+git39-g41f28391-1) unstable; urgency=medium
     - build-depend on dh-python
     - remove obsolete X-*-Python fields
 
- -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 31 Dec 2018 11:26:19 -0500
+ -- Yaroslav Halchenko <debian@onerussian.com>  Tue, 01 Jan 2019 19:53:57 -0500
 
 nibabel (2.3.1-1) unstable; urgency=medium
 
