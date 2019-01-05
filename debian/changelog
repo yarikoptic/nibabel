@@ -1,3 +1,9 @@
+nibabel (2.3.2-1) unstable; urgency=medium
+
+  * Fresh upstream release
+
+ -- Yaroslav Halchenko <debian@onerussian.com>  Fri, 04 Jan 2019 23:35:50 -0500
+
 nibabel (2.3.1+git51-g1ea7c30f-1) unstable; urgency=medium
 
   * Fresh upstream snapshot from rel/2.3.2 branch
