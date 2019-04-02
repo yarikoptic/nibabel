@@ -27,7 +27,7 @@ from . import analyze  # module import
 from .spm99analyze import SpmAnalyzeHeader
 from .casting import have_binary128
 from .pydicom_compat import have_dicom, pydicom as pdcm
-from .testing import setup_test  # noqa
+from . import setup_test  # noqa
 
 # nifti1 flat header definition for Analyze-like first 348 bytes
 # first number in comments indicates offset in file header in bytes
@@ -125,7 +125,9 @@ xform_codes = Recoder((  # code, label, niistring
     (1, 'scanner', "NIFTI_XFORM_SCANNER_ANAT"),
     (2, 'aligned', "NIFTI_XFORM_ALIGNED_ANAT"),
     (3, 'talairach', "NIFTI_XFORM_TALAIRACH"),
-    (4, 'mni', "NIFTI_XFORM_MNI_152")), fields=('code', 'label', 'niistring'))
+    (4, 'mni', "NIFTI_XFORM_MNI_152"),
+    (5, 'template', "NIFTI_XFORM_TEMPLATE_OTHER"),
+    ), fields=('code', 'label', 'niistring'))
 
 # unit codes
 unit_codes = Recoder((  # code, label
@@ -2014,13 +2016,9 @@ class Nifti1Pair(analyze.AnalyzeImage):
             return img
 
         # Also apply the transform to the dim_info fields
-        new_dim = list(img.header.get_dim_info())
-        for idx, value in enumerate(new_dim):
-            # For each value, leave as None if it was that way,
-            # otherwise check where we have mapped it to
-            if value is None:
-                continue
-            new_dim[idx] = np.where(ornt[:, 0] == idx)[0]
+        new_dim = [
+            None if orig_dim is None else int(ornt[orig_dim, 0])
+            for orig_dim in img.header.get_dim_info()]
 
         img.header.set_dim_info(*new_dim)
 

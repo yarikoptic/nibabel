@@ -27,9 +27,9 @@ discussions, release procedure and more.
 Authors and Contributors
 ========================
 
-The main authors of NiBabel are `Matthew Brett`_, `Michael Hanke`_, `Ben
-Cipollini`_, `Marc-Alexandre Côté`_, Chris Markiewicz, `Stephan Gerhard`_ and
-`Eric Larson`_.  The authors are grateful to the following people who have
+Most work on NiBabel so far has been by `Matthew Brett`_, Chris Markiewicz,
+`Michael Hanke`_, `Marc-Alexandre Côté`_, `Ben Cipollini`_, Paul McCarthy and
+Chris Cheng.  The authors are grateful to the following people who have
 contributed code and discussion (in rough order of appearance):
 
 * `Yaroslav O. Halchenko`_
@@ -92,6 +92,10 @@ contributed code and discussion (in rough order of appearance):
 * Igor Solovey
 * Jon Haitz Legarreta Gorroño
 * Katrin Leinweber
+* Soichi Hayashi
+* Samir Reddigari
+* Konstantinos Raktivan
+* Matt Cieslak
 
 License reprise
 ===============
