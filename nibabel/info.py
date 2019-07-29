@@ -18,7 +18,7 @@ from distutils.version import StrictVersion
 # (pre-release) version.
 _version_major = 2
 _version_minor = 3
-_version_micro = 2
+_version_micro = 3
 # _version_extra = 'dev'
 _version_extra = ''
 
@@ -210,4 +210,5 @@ ISRELEASE = _version_extra == ''
 VERSION = __version__
 PROVIDES = ["nibabel", 'nisext']
 REQUIRES = ["numpy>=%s" % NUMPY_MIN_VERSION,
+            "six>=%s" % SIX_MIN_VERSION,
             'bz2file; python_version < "3.0"']
