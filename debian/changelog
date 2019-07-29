@@ -1,6 +1,8 @@
 nibabel (2.4.1+git98-gced392b7-1) unstable; urgency=medium
 
   * Fresh pre 2.5.0 release snapshot
+  * debian/control
+    - Added python-texext to B-Depends - needed to build docs
 
  -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 29 Jul 2019 10:13:08 -0400
 
