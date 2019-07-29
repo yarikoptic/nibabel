@@ -17,8 +17,8 @@ from distutils.version import StrictVersion
 # We usually use `dev` as `_version_extra` to label this as a development
 # (pre-release) version.
 _version_major = 2
-_version_minor = 3
-_version_micro = 3
+_version_minor = 4
+_version_micro = 0
 # _version_extra = 'dev'
 _version_extra = ''
 
@@ -32,7 +32,7 @@ __version__ = "%s.%s.%s%s" % (_version_major,
 def _parse_version(version_str):
     """ Parse version string `version_str` in our format
     """
-    match = re.match('([0-9.]*\d)(.*)', version_str)
+    match = re.match(r'([0-9.]*\d)(.*)', version_str)
     if match is None:
         raise ValueError('Invalid version ' + version_str)
     return match.groups()
@@ -186,13 +186,13 @@ the top of the release notes.  Click on the badge for more information.
 # doc/source/installation.rst
 # requirements.txt
 # .travis.yml
-NUMPY_MIN_VERSION = '1.7.1'
+NUMPY_MIN_VERSION = '1.8'
 PYDICOM_MIN_VERSION = '0.9.9'
 SIX_MIN_VERSION = '1.3'
 
 # Main setup parameters
 NAME = 'nibabel'
-MAINTAINER = "Matthew Brett, Michael Hanke, Eric Larson, Chris Markiewicz"
+MAINTAINER = "Chris Markiewicz"
 MAINTAINER_EMAIL = "neuroimaging@python.org"
 DESCRIPTION = description
 LONG_DESCRIPTION = long_description
