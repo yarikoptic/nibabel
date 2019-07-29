@@ -17,8 +17,8 @@ from distutils.version import StrictVersion
 # We usually use `dev` as `_version_extra` to label this as a development
 # (pre-release) version.
 _version_major = 2
-_version_minor = 4
-_version_micro = 1
+_version_minor = 5
+_version_micro = 0
 # _version_extra = 'dev'
 _version_extra = ''
 
@@ -83,16 +83,6 @@ def cmp_pkg_version(version_str, pkg_version_str=__version__):
             else -1 if pkg_extra == ''
             else _cmp(extra, pkg_extra))
 
-
-CLASSIFIERS = ["Development Status :: 4 - Beta",
-               "Environment :: Console",
-               "Intended Audience :: Science/Research",
-               "License :: OSI Approved :: MIT License",
-               "Operating System :: OS Independent",
-               "Programming Language :: Python",
-               "Topic :: Scientific/Engineering"]
-
-description = 'Access a multitude of neuroimaging data formats'
 
 # Note: this long_description is the canonical place to edit this text.
 # It also appears in README.rst, but it should get there by running
@@ -184,33 +174,4 @@ the top of the release notes.  Click on the badge for more information.
 .. _Digital Object Identifier: https://en.wikipedia.org/wiki/Digital_object_identifier
 """
 
-# versions for dependencies. Check these against:
-# doc/source/installation.rst
-# requirements.txt
-# .travis.yml
-NUMPY_MIN_VERSION = '1.8'
-PYDICOM_MIN_VERSION = '0.9.9'
-SIX_MIN_VERSION = '1.3'
-
-# Main setup parameters
-NAME = 'nibabel'
-MAINTAINER = "Chris Markiewicz"
-MAINTAINER_EMAIL = "neuroimaging@python.org"
-DESCRIPTION = description
-LONG_DESCRIPTION = long_description
-URL = "http://nipy.org/nibabel"
-DOWNLOAD_URL = "https://github.com/nipy/nibabel"
-LICENSE = "MIT license"
-CLASSIFIERS = CLASSIFIERS
-AUTHOR = "nibabel developers"
-AUTHOR_EMAIL = "neuroimaging@python.org"
-PLATFORMS = "OS Independent"
-MAJOR = _version_major
-MINOR = _version_minor
-MICRO = _version_micro
-ISRELEASE = _version_extra == ''
 VERSION = __version__
-PROVIDES = ["nibabel", 'nisext']
-REQUIRES = ["numpy>=%s" % NUMPY_MIN_VERSION,
-            "six>=%s" % SIX_MIN_VERSION,
-            'bz2file; python_version < "3.0"']

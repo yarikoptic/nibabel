@@ -65,6 +65,7 @@ from .nifti2 import Nifti2Header, Nifti2Image, Nifti2Pair
 from .minc1 import Minc1Image
 from .minc2 import Minc2Image
 from .cifti2 import Cifti2Header, Cifti2Image
+from .gifti import GiftiImage
 # Deprecated backwards compatiblity for MINC1
 from .deprecated import ModuleProxy as _ModuleProxy
 minc = _ModuleProxy('nibabel.minc')
@@ -76,7 +77,7 @@ from .orientations import (io_orientation, orientation_affine,
                            flip_axis, OrientationError,
                            apply_orientation, aff2axcodes)
 from .imageclasses import class_map, ext_map, all_image_classes
-from . import trackvis
+trackvis = _ModuleProxy('nibabel.trackvis')
 from . import mriutils
 from . import streamlines
 from . import viewers
