@@ -1,8 +1,10 @@
-nibabel (2.4.0+git113-g3994fa5d-1) unstable; urgency=medium
+nibabel (2.5.0-1) unstable; urgency=medium
 
-  * Fresh pre 2.5.0 release snapshot
+  * Fresh 2.5.0 release
+    - many fixes (including .trk files failing tests on s390)
+    - some API deprecations
 
- -- Yaroslav Halchenko <debian@onerussian.com>  Fri, 02 Aug 2019 09:32:57 -0400
+ -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 05 Aug 2019 09:52:19 -0400
 
 nibabel (2.4.1-1) experimental; urgency=medium
 
