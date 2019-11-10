@@ -1,3 +1,9 @@
+nibabel (2.5.1-1) unstable; urgency=medium
+
+  * Fresh 2.5.1 release
+
+ -- Yaroslav Halchenko <debian@onerussian.com>  Sun, 10 Nov 2019 18:09:36 -0500
+
 nibabel (2.5.0-1) unstable; urgency=medium
 
   * Fresh 2.5.0 release

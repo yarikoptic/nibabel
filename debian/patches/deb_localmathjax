@@ -1,6 +1,6 @@
 --- a/doc/source/conf.py
 +++ b/doc/source/conf.py
-@@ -230,7 +230,7 @@ html_show_sourcelink = True
+@@ -242,7 +242,7 @@ html_show_sourcelink = True
  # Output file base name for HTML help builder.
  htmlhelp_basename = 'nibabeldoc'
  
