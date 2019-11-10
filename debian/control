@@ -9,7 +9,7 @@ Build-Depends: debhelper (>= 9~), dh-python,
                help2man, python-sphinx, python-matplotlib, libjs-mathjax,
                python-mock, python3-mock,
                python-numpydoc
-Standards-Version: 3.9.8
+Standards-Version: 4.4.1
 Homepage: http://nipy.sourceforge.net/nibabel
 Vcs-Browser: https://salsa.debian.org/neurodebian-team/pynifti
 Vcs-Git: https://salsa.debian.org/neurodebian-team/pynifti.git -b dist/debian/proper
