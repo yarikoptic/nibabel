@@ -1,4 +1,4 @@
-Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: nibabel
 Upstream-Contact: nipy-devel@neuroimaging.scipy.org
 Source: https://github.com/nipy/nibabel
@@ -23,7 +23,7 @@ License: BSD-3
 
 Files: debian/*
 Copyright: 2006-2010, Michael Hanke <michael.hanke@gmail.com>
-           2011, Yaroslav Halchenko <debian@onerussian.com>
+           2011-, Yaroslav Halchenko <debian@onerussian.com>
 License: Expat
 
 

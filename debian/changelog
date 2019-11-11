@@ -53,7 +53,7 @@ nibabel (2.3.1-1) unstable; urgency=medium
     - should address failures in examples (Closes: #909990)
   * debian/control
     * unify Suggests and Recommends between python{3,}-nibabel pkgs:
-      - docs and test helpers are in Suggests, the rest in Recommends  
+      - docs and test helpers are in Suggests, the rest in Recommends
 
  -- Yaroslav Halchenko <debian@onerussian.com>  Wed, 17 Oct 2018 23:45:47 -0400
 
