@@ -3,6 +3,7 @@ nibabel (2.5.1-1) unstable; urgency=medium
   * Fresh 2.5.1 release (2.5.x series is the last one to support python2)
   * debian/control
     - boosted policy to 4.4.1
+    - Stripped XS- for Testsuite
   * debian/copyright
     - removed obsolete paragraph for no longer included 
       doc/sphinxext/autosummary

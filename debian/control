@@ -13,7 +13,7 @@ Standards-Version: 4.4.1
 Homepage: http://nipy.sourceforge.net/nibabel
 Vcs-Browser: https://salsa.debian.org/neurodebian-team/pynifti
 Vcs-Git: https://salsa.debian.org/neurodebian-team/pynifti.git -b dist/debian/proper
-XS-Testsuite: autopkgtest
+Testsuite: autopkgtest
 
 Package: python-nibabel
 Architecture: all
