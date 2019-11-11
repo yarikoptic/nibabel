@@ -3,6 +3,8 @@ nibabel (2.5.1-1) unstable; urgency=medium
   * Fresh 2.5.1 release (2.5.x series is the last one to support python2)
   * debian/control
     - boosted policy to 4.4.1
+  * rm debian/patches/lenny-dsc-patch_numpy_testing - no backports for lenny
+    were built for years
 
  -- Yaroslav Halchenko <debian@onerussian.com>  Sun, 10 Nov 2019 18:09:36 -0500
 
