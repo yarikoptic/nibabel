@@ -12,10 +12,6 @@ Copyright: 2006-2011, Michael Hanke <michael.hanke@gmail.com>
            2011-2012, Yaroslav Halchenko <debian@onerussian.com>
 License: Expat
 
-Files: doc/sphinxext/autosummary/*
-Copyright: 2007-2009, Stefan van der Walt and Sphinx team
-License: BSD-3
-
 Files: nibabel/externals/*netcdf*
 Copyright: 1999-2010, SciPy Developers <scipy-dev@scipy.org>
 License: BSD-3
